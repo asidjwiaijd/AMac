@@ -1,11 +1,23 @@
 #pragma once
 #include <stdint.h>
+#include <string.h>
 
 // RGB565 is native endian throughout. Write in portrait row order so every
 // destination cache line is touched contiguously, without a DMA scratch buffer.
 inline bool writePanelTile(uint16_t *fb, int pw, int ph, bool flip,
-                           int x, int y, int w, int h, const uint16_t *pixels)
+                           int x, int y, int w, int h, const uint16_t *pixels,
+                           bool rotate90 = true)
 {
+    if (!rotate90) {
+        if (!fb || !pixels || w <= 0 || h <= 0 || x < 0 || y < 0 ||
+            x > pw - w || y > ph - h) return false;
+        for (int row = 0; row < h; ++row) {
+            if (!flip) memcpy(fb + (y + row) * pw + x, pixels + row * w, w * sizeof(*fb));
+            else for (int col = 0; col < w; ++col)
+                fb[(ph - 1 - y - row) * pw + pw - 1 - x - col] = pixels[row * w + col];
+        }
+        return true;
+    }
     if (!fb || !pixels || w <= 0 || h <= 0 || x < 0 || y < 0 ||
         x > ph - w || y > pw - h) return false;
     for (int column = 0; column < w; ++column) {
@@ -69,8 +81,24 @@ inline bool writePanelIndexedTile1x(uint16_t *fb, int pw, int ph, bool flip,
                                     int x, int y, int w, int h,
                                     const uint8_t *src, uint32_t stride,
                                     int bits, int first_pixel,
-                                    const uint32_t *pairs)
+                                    const uint32_t *pairs, bool rotate90 = true)
 {
+    if (!rotate90) {
+        if (!fb || !src || !pairs || w <= 0 || h <= 0 ||
+            (bits != 1 && bits != 2 && bits != 4 && bits != 8) || first_pixel < 0 ||
+            x < 0 || y < 0 || x > pw - w || y > ph - h ||
+            ((uint64_t)first_pixel + w) * bits > (uint64_t)stride * 8) return false;
+        const uint32_t mask = (1u << bits) - 1;
+        for (int row = 0; row < h; ++row) for (int col = 0; col < w; ++col) {
+            const uint64_t bit = ((uint64_t)first_pixel + col) * bits;
+            const uint16_t c = (uint16_t)pairs[(src[(uint64_t)row * stride + (bit >> 3)] >>
+                                                (8 - bits - (bit & 7))) & mask];
+            const int px = flip ? pw - 1 - x - col : x + col;
+            const int py = flip ? ph - 1 - y - row : y + row;
+            fb[py * pw + px] = c;
+        }
+        return true;
+    }
     if (!fb || !src || !pairs || w <= 0 || h <= 0 ||
         (bits != 1 && bits != 2 && bits != 4 && bits != 8) || first_pixel < 0 ||
         x < 0 || y < 0 || x > ph - w || y > pw - h) return false;
@@ -94,7 +122,8 @@ inline bool writePanelIndexedTile1x(uint16_t *fb, int pw, int ph, bool flip,
 }
 
 inline uint16_t readPanelPixel(const uint16_t *fb, int pw, int ph, bool flip,
-                              int x, int y)
+                              int x, int y, bool rotate90 = true)
 {
+    if (!rotate90) return flip ? fb[(ph - 1 - y) * pw + pw - 1 - x] : fb[y * pw + x];
     return flip ? fb[(ph - 1 - x) * pw + y] : fb[x * pw + pw - 1 - y];
 }

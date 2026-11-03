@@ -50,7 +50,9 @@ bool MiniGfx::beginExternalFb(void *external_fb,
                               int logical_w, int logical_h,
                               int panel_w,   int panel_h)
 {
-    if (!external_fb || logical_w != panel_h || logical_h != panel_w ||
+    const bool rotated = logical_w == panel_h && logical_h == panel_w;
+    const bool native = logical_w == panel_w && logical_h == panel_h;
+    if (!external_fb || (!rotated && !native) ||
         panel_w <= 0 || panel_h <= 0) {
         ESP_LOGE(TAG, "beginExternalFb: invalid framebuffer or geometry");
         return false;
@@ -59,6 +61,7 @@ bool MiniGfx::beginExternalFb(void *external_fb,
     _lh = logical_h;
     _pw = panel_w;
     _ph = panel_h;
+    _rotate90 = !native;
     _fb = static_cast<uint16_t *>(external_fb);
     _scanout = nonCacheableAlias(_fb);
     /* Start from a known state so early reads see a clean canvas. */
@@ -72,7 +75,10 @@ inline void MiniGfx::writeLogicalPixel(int lx, int ly, uint16_t color)
 {
     if (lx < 0 || lx >= _lw || ly < 0 || ly >= _lh) return;
     int px, py;
-    if (_flip180) {
+    if (!_rotate90) {
+        px = _flip180 ? _pw - 1 - lx : lx;
+        py = _flip180 ? _ph - 1 - ly : ly;
+    } else if (_flip180) {
         /* 180-degree flipped landscape: (lx, ly) -> (ly, _ph - 1 - lx). */
         px = ly;
         py = _ph - 1 - lx;
@@ -100,7 +106,12 @@ void MiniGfx::fillLogicalRect(int lx, int ly, int lw, int lh, uint16_t color)
      * logical x increase upward. Both iterate in physical-row-major order
      * because each physical row is contiguous memory.                     */
     int px0, px1, py0, py1;
-    if (_flip180) {
+    if (!_rotate90) {
+        px0 = _flip180 ? _pw - lx - lw : lx;
+        px1 = px0 + lw;
+        py0 = _flip180 ? _ph - ly - lh : ly;
+        py1 = py0 + lh;
+    } else if (_flip180) {
         px0 = ly;                       /* inclusive */
         px1 = ly + lh;                  /* exclusive */
         py0 = _ph - (lx + lw);          /* inclusive */

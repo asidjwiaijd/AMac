@@ -193,9 +193,12 @@ static void assert_panel(const std::vector<uint16> &panel, const std::vector<uin
         int index = (guest[y * stride + x / ppb] >> (8 - bits * (x % ppb + 1))) & ((1 << bits) - 1);
         for (int dy = 0; dy < PIXEL_SCALE; ++dy) for (int dx = 0; dx < PIXEL_SCALE; ++dx) {
             const int lx = x * PIXEL_SCALE + dx, ly = y * PIXEL_SCALE + dy;
-            const int px = flip ? ly : DISPLAY_HEIGHT - 1 - ly;
-            const int py = flip ? DISPLAY_WIDTH - 1 - lx : lx;
-            assert(panel[py * DISPLAY_HEIGHT + px] == palette_rgb565[index]);
+            const int px = BOARD_PANEL_NATIVE_LANDSCAPE ? (flip ? DISPLAY_WIDTH - 1 - lx : lx)
+                                                       : (flip ? ly : DISPLAY_HEIGHT - 1 - ly);
+            const int py = BOARD_PANEL_NATIVE_LANDSCAPE ? (flip ? DISPLAY_HEIGHT - 1 - ly : ly)
+                                                       : (flip ? DISPLAY_WIDTH - 1 - lx : lx);
+            const int stride = BOARD_PANEL_NATIVE_LANDSCAPE ? DISPLAY_WIDTH : DISPLAY_HEIGHT;
+            assert(panel[py * stride + px] == palette_rgb565[index]);
         }
     }
 }
@@ -206,7 +209,9 @@ static void test_pipeline()
     std::vector<uint8> guest(MAC_SCREEN_WIDTH * MAC_SCREEN_HEIGHT);
     assert(!BoardDisplay_BeginTiles());
     assert(!BoardDisplay_AttachSurface(panel.data(), 1, 1));
-    assert(BoardDisplay_AttachSurface(panel.data(), DISPLAY_HEIGHT, DISPLAY_WIDTH));
+    assert(BoardDisplay_AttachSurface(panel.data(),
+        BOARD_PANEL_NATIVE_LANDSCAPE ? DISPLAY_WIDTH : DISPLAY_HEIGHT,
+        BOARD_PANEL_NATIVE_LANDSCAPE ? DISPLAY_HEIGHT : DISPLAY_WIDTH));
     auto &gfx = BoardDisplay_Gfx();
     BoardDisplay_Present();
 

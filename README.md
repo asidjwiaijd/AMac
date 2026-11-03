@@ -1,3 +1,11 @@
+# aMac 本地移植
+
+本地目标：OSPTEK ESP32-P4C5，2026-11-02 底板/前板网表，
+HD20034C40-V1（PDF 内型号 HD20034C40-H-V1），480×360 ST7701S MIPI 屏。
+默认构建 `amac_p4_rev3`；移植说明、构建/烧录及待实机验证项目见
+[AMAC_PORT.md](AMAC_PORT.md)，引脚依据见 [hardware/README.md](hardware/README.md)。
+下文保留上游项目文档，其 Tab5/Waveshare 固件不能直接用于 aMac。
+
 # BasiliskII ESP32 — Classic Macintosh Emulator
 
 A full port of the **BasiliskII** Macintosh 68k emulator to the ESP32-P4, bringing classic Mac OS (System 7.x through Mac OS 8.1) to portable embedded devices with touchscreen and USB peripheral support.

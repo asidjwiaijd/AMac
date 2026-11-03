@@ -1,0 +1,11 @@
+disk=/Macintosh.dsk
+cdrom=
+extfs=
+ramsize=16
+skip_gui=yes
+wifi_ssid=
+wifi_pass=
+wifi_auto=no
+audio_enabled=no
+boot_from_cd=no
+rotation=0

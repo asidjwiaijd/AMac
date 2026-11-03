@@ -1,0 +1,2 @@
+# Preserve the exact upstream source hash across Windows/Linux checkouts.
+third_party/esp_hosted_2_12_3/** text eol=lf

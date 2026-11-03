@@ -96,9 +96,9 @@ class ReleaseImagesTests(unittest.TestCase):
             data[offset:offset + len(component)] = component
         self.merged.write_bytes(data)
 
-    def test_all_four_download_names_are_distinct(self):
-        self.assertEqual(len(release.TARGETS), 4)
-        self.assertEqual(len(set(release.TARGETS.values())), 4)
+    def test_all_board_download_names_are_distinct(self):
+        self.assertEqual(len(release.TARGETS), 6)
+        self.assertEqual(len(set(release.TARGETS.values())), 6)
         for environment, name in release.TARGETS.items():
             self.assertEqual(environment.endswith("_rev3"), name.endswith("-Rev3"))
 

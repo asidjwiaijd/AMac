@@ -5,16 +5,16 @@
  * at compile time based on the BOARD_* macro defined by the active
  * PlatformIO environment in platformio.ini.
  *
- * Exactly one of BOARD_M5STACK_TAB5, BOARD_WAVESHARE_P4_101, or the
- * host-test-only BOARD_HOST_SCALE1 must be set.
+ * Exactly one of BOARD_M5STACK_TAB5, BOARD_WAVESHARE_P4_101, BOARD_AMAC_P4,
+ * or the host-test-only BOARD_HOST_SCALE1 must be set.
  */
 #pragma once
 
-#if !defined(BOARD_M5STACK_TAB5) && !defined(BOARD_WAVESHARE_P4_101) && !defined(BOARD_HOST_SCALE1)
-#error "No board target defined. Set BOARD_M5STACK_TAB5 or BOARD_WAVESHARE_P4_101 via platformio.ini build_flags."
+#if !defined(BOARD_M5STACK_TAB5) && !defined(BOARD_WAVESHARE_P4_101) && !defined(BOARD_AMAC_P4) && !defined(BOARD_HOST_SCALE1)
+#error "No board target defined. Select a BOARD_* target via platformio.ini."
 #endif
 
-#if (defined(BOARD_M5STACK_TAB5) + defined(BOARD_WAVESHARE_P4_101) + defined(BOARD_HOST_SCALE1)) != 1
+#if (defined(BOARD_M5STACK_TAB5) + defined(BOARD_WAVESHARE_P4_101) + defined(BOARD_AMAC_P4) + defined(BOARD_HOST_SCALE1)) != 1
 #error "Multiple board targets defined. Pick exactly one."
 #endif
 
@@ -88,6 +88,27 @@
 #define BOARD_SD_MOUNT_POINT        "/sd"
 
 /* ------------------------------------------------------------------------- */
+/* aMac ESP32-P4C5, 2026-11-02 netlists, HD20034C40-H-V1                    */
+/* ------------------------------------------------------------------------- */
+#elif defined(BOARD_AMAC_P4)
+
+#include "amac/amac_pins.h"
+#define BOARD_NAME                  "aMac P4C5 HD20034"
+#define BOARD_DISPLAY_WIDTH         480
+#define BOARD_DISPLAY_HEIGHT        360
+#define BOARD_MAC_SCREEN_WIDTH      480
+#define BOARD_MAC_SCREEN_HEIGHT     360
+#define BOARD_PIXEL_SCALE           1
+#define BOARD_PANEL_NATIVE_LANDSCAPE 1
+#define BOARD_HAS_AUDIO             0
+#define BOARD_HAS_USB_MSC           0
+#define BOARD_TILE_WIDTH            32
+#define BOARD_TILE_HEIGHT           40
+#define BOARD_TILES_X               (BOARD_MAC_SCREEN_WIDTH / BOARD_TILE_WIDTH)
+#define BOARD_TILES_Y               (BOARD_MAC_SCREEN_HEIGHT / BOARD_TILE_HEIGHT)
+#define BOARD_SD_MOUNT_POINT        "/sd"
+
+/* ------------------------------------------------------------------------- */
 /* Host scale-1 test panel (640x360, PIXEL_SCALE 1)                          */
 /* ------------------------------------------------------------------------- */
 #elif defined(BOARD_HOST_SCALE1)
@@ -109,6 +130,16 @@
 #define BOARD_TILES_X               (BOARD_MAC_SCREEN_WIDTH  / BOARD_TILE_WIDTH)  /* 20 */
 #define BOARD_TILES_Y               (BOARD_MAC_SCREEN_HEIGHT / BOARD_TILE_HEIGHT) /* 9  */
 
+#endif
+
+#ifndef BOARD_PANEL_NATIVE_LANDSCAPE
+#define BOARD_PANEL_NATIVE_LANDSCAPE 0
+#endif
+#ifndef BOARD_HAS_AUDIO
+#define BOARD_HAS_AUDIO 1
+#endif
+#ifndef BOARD_HAS_USB_MSC
+#define BOARD_HAS_USB_MSC 1
 #endif
 
 /* Sanity: tile grid must divide the Mac framebuffer exactly. */

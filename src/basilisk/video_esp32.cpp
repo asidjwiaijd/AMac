@@ -1307,7 +1307,7 @@ bool VideoVerifyPanel(uint32 *checked, uint32 *mismatched, int *first_x, int *fi
             for (int dy = 0; dy < PIXEL_SCALE; ++dy) {
                 for (int dx = 0; dx < PIXEL_SCALE; ++dx) {
                     const uint16 actual = readPanelPixel(panel, gfx.panelW(), gfx.panelH(), gfx.flip180(),
-                                                         x * PIXEL_SCALE + dx, y * PIXEL_SCALE + dy);
+                                                         x * PIXEL_SCALE + dx, y * PIXEL_SCALE + dy, gfx.rotate90());
                     ++*checked;
                     if (actual != expected) {
                         if (*mismatched == 0) {

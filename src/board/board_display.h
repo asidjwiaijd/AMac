@@ -76,7 +76,7 @@ void BoardDisplay_Present(void);
  * supported boards use MiniGfx on the panel-owned framebuffer, uniform across
  * boards and callers don't need board-specific drawing code. */
 
-#if defined(BOARD_M5STACK_TAB5) || defined(BOARD_WAVESHARE_P4_101) || defined(BOARD_HOST_SCALE1)
+#if defined(BOARD_M5STACK_TAB5) || defined(BOARD_WAVESHARE_P4_101) || defined(BOARD_AMAC_P4) || defined(BOARD_HOST_SCALE1)
 #include "mini_gfx/mini_gfx.h"
 MiniGfx &BoardDisplay_Gfx_Board(void);
 static inline MiniGfx &BoardDisplay_Gfx(void) { return BoardDisplay_Gfx_Board(); }

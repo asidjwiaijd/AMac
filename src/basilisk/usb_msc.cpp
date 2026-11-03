@@ -47,7 +47,7 @@
 // USB-OTG peripheral and TinyUSB MSC is enabled via sdkconfig. On both
 // Tab5 and Waveshare we hit this branch; per-board behaviour is gated at
 // runtime inside UsbMsc_Enter (see BOARD_M5STACK_TAB5 sections).
-#if defined(SOC_USB_OTG_SUPPORTED) && CONFIG_TINYUSB_MSC_ENABLED
+#if defined(SOC_USB_OTG_SUPPORTED) && CONFIG_TINYUSB_MSC_ENABLED && BOARD_HAS_USB_MSC
 #define USB_MSC_AVAILABLE 1
 #else
 #define USB_MSC_AVAILABLE 0

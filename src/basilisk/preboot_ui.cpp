@@ -231,7 +231,7 @@ bool VerifyPanel(uint32_t *checked, uint32_t *mismatched, int *first_x, int *fir
         for (int x = 0; x < s_w * kScale; ++x) {
             const uint16_t want = s_palette[s_shown[(size_t)(y / kScale) * s_w + x / kScale]];
             ++*checked;
-            if (readPanelPixel(panel, gfx.panelW(), gfx.panelH(), gfx.flip180(), x, y) != want) {
+            if (readPanelPixel(panel, gfx.panelW(), gfx.panelH(), gfx.flip180(), x, y, gfx.rotate90()) != want) {
                 if (!*mismatched) { *first_x = x; *first_y = y; }
                 ++*mismatched;
             }
