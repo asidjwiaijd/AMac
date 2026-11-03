@@ -2,3 +2,5 @@
 third_party/esp_hosted_2_12_3/** text eol=lf -whitespace
 # Netlist exports are hardware evidence; preserve their exported whitespace.
 hardware/netlists/*.tel -whitespace
+# Keep the supplied display reference byte-for-byte (it contains CRCRLF).
+hardware/reference/tspi-rk3566-dsi-v10.dtsi -text -whitespace

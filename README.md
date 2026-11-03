@@ -4,6 +4,8 @@
 HD20034C40-V1（PDF 内型号 HD20034C40-H-V1），480×360 ST7701S MIPI 屏。
 默认构建 `amac_p4_rev3`；移植说明、构建/烧录及待实机验证项目见
 [AMAC_PORT.md](AMAC_PORT.md)，引脚依据见 [hardware/README.md](hardware/README.md)。
+屏幕配置现已采用补充 `kernel修改说明.zip` 的初始化表和时序，见
+[屏幕驱动参考](hardware/reference/HD20034_KERNEL_REFERENCE.md)。
 下文保留上游项目文档，其 Tab5/Waveshare 固件不能直接用于 aMac。
 
 # BasiliskII ESP32 — Classic Macintosh Emulator
