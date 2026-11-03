@@ -12,7 +12,46 @@
 - 固件合并及 DSI 初始化补丁相关的8项主机回归测试通过。
 - 界面截图已人工查看：480×360 设置、Wi-Fi、启动画面；控件不越界。
 
-最终提交后的两种芯片构建、产物哈希和测试结果将在交付前更新。
+## 最终构建与产物
+
+两种镜像均由干净工作区的源码提交
+`581adbaaf9c17e3ce787aab60cf7668db0913a62` 构建，`source_dirty=false`。
+后续记录提交只更新本文件，不改变固件源码。
+
+| 环境 | 结果 | SDK 最低 revision | 完整镜像字节数 |
+|---|---|---|---|
+| `amac_p4_rev3` | SUCCESS | 3.1（301） | 1907296 |
+| `amac_p4_es` | SUCCESS | 0.1（1） | 1906304 |
+
+SHA256：
+
+```text
+aMac-P4C5-HD20034-Rev3.bin
+741c457a98b94adeae98f3d36c2bf643c0a98498fdf845291bb4ea2f24ed0b41
+
+aMac-P4C5-HD20034-ES.bin
+5e46eb5109c6796ae40b08d0d3ae790676d77010b8addad360ef19d6eb2037f0
+```
+
+镜像旁 JSON 记录相同哈希、源码提交、芯片要求、各组成部分校验和与 C5
+transport 版本。两份合并镜像已再次独立逐字节校验 bootloader、partition 和
+application，并通过芯片 ID、链接 map 检查。
+
+主机验证：5项 aMac 测试通过，其中显示管线与启动 UI 分别覆盖 aMac、Tab5、
+Waveshare；另有8项合并镜像/DSI 补丁回归检查通过，共13项。G++ 15.2 原生
+运行，没有启用 ASan。检查范围包括全部支持的索引色深、0/180度旋转、缓存
+发布失败重试、并发写入及生命周期。最终480×360设置画面已确认隐藏无音频和
+USB Disk 控件，所有可用控件均在屏幕内。
+
+本机构建/测试日志（忽略构建产物，不纳入 Git）：
+
+- `artifacts/build/amac-p4-rev3.log`
+- `artifacts/build/amac-p4-es.log`
+- `artifacts/build/amac-host-tests.log`
+- `artifacts/build/amac-packaging-tests.log`
+
+原生界面图片：`artifacts/amac-ui/BOARD_AMAC_P4/`。
+Git 版本标签：`amac-v0.1.0-reference`。上游基线与全部移植提交均保留。
 
 ## 需要实机完成
 
