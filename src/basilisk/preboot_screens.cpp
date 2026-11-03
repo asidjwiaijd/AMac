@@ -168,7 +168,8 @@ SettingsLayout LayoutSettings(int width, int height, bool usb_available)
     L.window = mainWindow(width, height);
     const Rect c = WindowContent(L.window);
     const int left = c.x + kMargin, usable = c.w - 2 * kMargin;
-    const int rows = 4 + (height > 360 ? (height - 360) / kRowHeight : 0);
+    const bool compact = width < 600;
+    const int rows = (compact ? 2 : 4) + (height > 360 ? (height - 360) / kRowHeight : 0);
     const int column_w = (usable - 2 * kMargin) / 3;
 
     int y = c.y + 8;
@@ -180,20 +181,22 @@ SettingsLayout LayoutSettings(int width, int height, bool usb_available)
     }
     y = L.lists[0].frame.bottom() + kMargin;
 
-    L.memory_box = {left, y, 290, 50};
-    L.options_box = {left + 300, y, usable - 300, 50};
+    L.memory_box = {left, y, compact ? usable : 290, 50};
+    L.options_box = compact ? Rect{left, y + 56, usable, 50}
+                            : Rect{left + 300, y, usable - 300, 50};
     for (int i = 0; i < kBootRamChoiceCount; ++i)
         L.controls[kRamFirst + i] = {left + 14 + i * 68 - 4, y + 14, 66, 28};
     int total = 0;
-    for (const char *label : kOptionLabels) total += 18 + TextWidth(label);
-    const int gap = (L.options_box.w - 28 - total) / 2;
+    const int first_option = BOARD_HAS_AUDIO ? 0 : 1;
+    for (int i = first_option; i < 3; ++i) total += 18 + TextWidth(kOptionLabels[i]);
+    const int gap = (L.options_box.w - 28 - total) / (2 - first_option);
     int x = L.options_box.x + 14;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = first_option; i < 3; ++i) {
         const int w = 18 + TextWidth(kOptionLabels[i]);
-        L.controls[kSoundBox + i] = {x - 4, y + 14, w + 8, 28};
+        L.controls[kSoundBox + i] = {x - 4, L.options_box.y + 14, w + 8, 28};
         x += w + gap;
     }
-    y += 50 + 10;
+    y = L.options_box.bottom() + 10;
 
     L.network_box = {left, y, usable, 56};
     L.wifi_icon_area = {left + 14, y + 20, 16, 12};
@@ -237,6 +240,7 @@ void PaintSettings(const SettingsLayout &L, const SettingsView &v)
     GroupBox(L.options_box, "Options");
     const bool option_values[3] = {v.sound, v.boot_from_cd, v.rotate180};
     for (int i = 0; i < 3; ++i) {
+        if (i == 0 && !BOARD_HAS_AUDIO) continue;
         const Rect &hit = L.controls[kSoundBox + i];
         LabeledCheckbox(hit.x + 4, hit.y + 6, kOptionLabels[i], option_values[i],
                         v.pressed == kSoundBox + i);

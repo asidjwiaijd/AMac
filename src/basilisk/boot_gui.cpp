@@ -2095,7 +2095,7 @@ int BootGUI_GetRotation(void)
 
 bool BootGUI_GetAudioEnabled(void)
 {
-    return audio_enabled;
+    return BOARD_HAS_AUDIO && audio_enabled;
 }
 
 bool BootGUI_GetPowerManagerEnabled(void)

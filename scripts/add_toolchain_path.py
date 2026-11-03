@@ -8,7 +8,9 @@ Import("env")
 
 # Get the home directory
 home = os.path.expanduser("~")
-packages_dir = os.path.join(home, ".platformio", "packages")
+packages_dir = env.subst("$PROJECT_PACKAGES_DIR")
+if not packages_dir or "$" in packages_dir:
+    packages_dir = os.path.join(os.environ.get("PLATFORMIO_CORE_DIR", os.path.join(home, ".platformio")), "packages")
 
 # Find all toolchain-riscv32-esp packages (prefer newer versions)
 toolchain_patterns = [
@@ -26,7 +28,7 @@ for pattern in toolchain_patterns:
 toolchain_bin = None
 for path in toolchain_paths:
     if os.path.isdir(path):
-        compiler = os.path.join(path, "riscv32-esp-elf-g++")
+        compiler = os.path.join(path, "riscv32-esp-elf-g++" + (".exe" if os.name == "nt" else ""))
         if os.path.isfile(compiler):
             toolchain_bin = path
             break

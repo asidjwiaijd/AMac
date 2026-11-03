@@ -3,6 +3,7 @@ docs/
 
 # PlatformIO
 .pio/
+.pio-core/
 .pioenvs/
 .piolibdeps/
 
@@ -49,6 +50,8 @@ lib/*/
 !lib/esp_lcd_touch_gt911/**
 !lib/esp_codec_dev/
 !lib/esp_codec_dev/**
+!lib/esp_lcd_st7701/
+!lib/esp_lcd_st7701/**
 
 # macOS
 .DS_Store

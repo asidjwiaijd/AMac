@@ -53,6 +53,7 @@ public:
      * re-render already-drawn pixels. */
     void setFlip180(bool on) { _flip180 = on; }
     bool flip180(void) const { return _flip180; }
+    bool rotate90(void) const { return _rotate90; }
 
     /* LovyanGFX-compatible drawing API (subset used by boot_gui.cpp). */
     int  width(void)  const { return _lw; }
@@ -108,6 +109,7 @@ private:
     int      _pw           = 0;        /* panel portrait width     */
     int      _ph           = 0;        /* panel portrait height    */
     bool     _flip180      = false;    /* rotate landscape view 180 degrees */
+    bool     _rotate90     = true;     /* false for a native landscape panel */
 
     bool     _dirty        = false;   /* any draw op sets this; flushAll clears it */
 

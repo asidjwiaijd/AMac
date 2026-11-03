@@ -1,0 +1,4 @@
+# Arduino/pioarduino supplies IDF + ESP-Hosted. ST7701 MIPI is vendored in lib/.
+dependencies:
+  idf:
+    version: ">=5.5,<6.0"

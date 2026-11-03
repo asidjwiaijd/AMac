@@ -1,0 +1,9 @@
+{
+  "name": "esp_lcd_st7701",
+  "version": "2.0.3",
+  "description": "Espressif ST7701 MIPI-DSI backend (vendored subset)",
+  "license": "Apache-2.0",
+  "build": { "includeDir": "include", "srcDir": "src" },
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}

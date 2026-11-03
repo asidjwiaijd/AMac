@@ -11,7 +11,9 @@ static int s_first_row = 0, s_last_row = 0;
 bool BoardDisplay_AttachSurface(void *framebuffer, int panel_width, int panel_height)
 {
     if (s_surface_mutex) return true;
-    if (panel_width != BOARD_DISPLAY_HEIGHT || panel_height != BOARD_DISPLAY_WIDTH)
+    const int expected_w = BOARD_PANEL_NATIVE_LANDSCAPE ? BOARD_DISPLAY_WIDTH : BOARD_DISPLAY_HEIGHT;
+    const int expected_h = BOARD_PANEL_NATIVE_LANDSCAPE ? BOARD_DISPLAY_HEIGHT : BOARD_DISPLAY_WIDTH;
+    if (panel_width != expected_w || panel_height != expected_h)
         return false;
     SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
     if (!mutex) return false;
@@ -40,9 +42,11 @@ extern "C" bool BoardDisplay_PushTile(int x, int y, int w, int h, const uint16_t
 {
     const bool flip = s_gfx.flip180();
     if (!writePanelTile(s_gfx.scanoutFb(), s_gfx.panelW(), s_gfx.panelH(),
-                         flip, x, y, w, h, pixels)) return false;
-    const int first = flip ? s_gfx.panelH() - x - w : x;
-    const int last = first + w;
+                         flip, x, y, w, h, pixels, s_gfx.rotate90())) return false;
+    const int start = s_gfx.rotate90() ? x : y;
+    const int extent = s_gfx.rotate90() ? w : h;
+    const int first = flip ? s_gfx.panelH() - start - extent : start;
+    const int last = first + extent;
     if (first < s_first_row) s_first_row = first;
     if (last > s_last_row) s_last_row = last;
     return true;
@@ -55,12 +59,14 @@ extern "C" bool BoardDisplay_PushIndexedTile(int x, int y, int w, int h, const u
     const bool flip = s_gfx.flip180();
     const bool written = (BOARD_PIXEL_SCALE == 1)
         ? writePanelIndexedTile1x(s_gfx.scanoutFb(), s_gfx.panelW(), s_gfx.panelH(),
-                                  flip, x, y, w, h, src, stride, bits, first_pixel, pairs)
+                                  flip, x, y, w, h, src, stride, bits, first_pixel, pairs, s_gfx.rotate90())
         : writePanelIndexedTile2x(s_gfx.scanoutFb(), s_gfx.panelW(), s_gfx.panelH(),
                                   flip, x, y, w, h, src, stride, bits, first_pixel, pairs);
     if (!written) return false;
-    const int first = flip ? s_gfx.panelH() - x - w : x;
-    const int last = first + w;
+    const int start = s_gfx.rotate90() ? x : y;
+    const int extent = s_gfx.rotate90() ? w : h;
+    const int first = flip ? s_gfx.panelH() - start - extent : start;
+    const int last = first + extent;
     if (first < s_first_row) s_first_row = first;
     if (last > s_last_row) s_last_row = last;
     return true;
@@ -91,7 +97,7 @@ extern "C" bool BoardDisplay_CapturePanel(uint8_t *pixels, size_t capacity, uint
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x) {
             const uint16_t c = readPanelPixel(fb, s_gfx.panelW(), s_gfx.panelH(), flip,
-                                              x * step, y * step);
+                                              x * step, y * step, s_gfx.rotate90());
             unsigned hash = (c * 40503u) >> 6 & 1023u;
             int index = -1;
             while (slots[hash] >= 0) {

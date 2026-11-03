@@ -32,7 +32,7 @@ static void expectScaled(const char *name)
             for (int dy = 0; dy < UI::kScale; ++dy)
                 for (int dx = 0; dx < UI::kScale; ++dx)
                     if (readPanelPixel(panel.data(), gfx.panelW(), gfx.panelH(), gfx.flip180(),
-                                       UI::kScale * x + dx, UI::kScale * y + dy) != want) {
+                                       UI::kScale * x + dx, UI::kScale * y + dy, gfx.rotate90()) != want) {
                         std::fprintf(stderr, "%s: panel (%d,%d) is not logical (%d,%d)\n",
                                      name, UI::kScale * x + dx, UI::kScale * y + dy, x, y);
                         std::abort();
@@ -62,7 +62,9 @@ static void expectScaled(const char *name)
 int main()
 {
     panel.assign(BOARD_DISPLAY_WIDTH * BOARD_DISPLAY_HEIGHT, 0xdead);
-    assert(BoardDisplay_AttachSurface(panel.data(), BOARD_DISPLAY_HEIGHT, BOARD_DISPLAY_WIDTH));
+    assert(BoardDisplay_AttachSurface(panel.data(),
+        BOARD_PANEL_NATIVE_LANDSCAPE ? BOARD_DISPLAY_WIDTH : BOARD_DISPLAY_HEIGHT,
+        BOARD_PANEL_NATIVE_LANDSCAPE ? BOARD_DISPLAY_HEIGHT : BOARD_DISPLAY_WIDTH));
     assert(UI::Begin());
     const int W = UI::Width(), H = UI::Height();
 
@@ -91,18 +93,21 @@ int main()
         sv.ram_mb = 24;
         sv.sound = true;
         sv.rotate180 = true;
-        sv.usb_available = true;
+        sv.usb_available = BOARD_HAS_USB_MSC;
         sv.wifi_bars = 3;
         sv.wifi_status = "Wi-Fi: Connected to Home Network";
         sv.wifi_detail = "Address 192.168.1.20";
         sv.pressed = kNoControl;
-        const SettingsLayout sl = LayoutSettings(W, H, true);
+        const SettingsLayout sl = LayoutSettings(W, H, BOARD_HAS_USB_MSC);
+        assert(sl.network_box.bottom() <= sl.controls[kStartButton].y);
+        assert(sl.memory_box.right() <= W && sl.options_box.right() <= W);
         PaintSettings(sl, sv);
         shot("settings");
 
         // Every control must be reachable at its own center.
         for (int i = 0; i < kSettingsControlCount; ++i) {
             const UI::Rect &r = sl.controls[i];
+            if (r.w == 0) continue; // board capabilities can omit a control
             assert(SettingsControlAt(sl, r.x + r.w / 2, r.y + r.h / 2) == i);
             assert(r.right() <= W && r.bottom() <= H);
         }
@@ -129,6 +134,7 @@ int main()
         shot("wifi");
         for (int i = 0; i < kWiFiControlCount; ++i) {
             const UI::Rect &r = wl.controls[i];
+            assert(r.x >= 0 && r.y >= 0 && r.right() <= W && r.bottom() <= H);
             assert(WiFiControlAt(wl, r.x + r.w / 2, r.y + r.h / 2) == i);
         }
         std::vector<NetworkRow> none;

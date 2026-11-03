@@ -4,6 +4,8 @@ from pathlib import Path
 import struct
 
 TARGETS = {
+    "amac_p4_rev3": "aMac-P4C5-HD20034-Rev3",
+    "amac_p4_es": "aMac-P4C5-HD20034-ES",
     "esp32p4_pioarduino": "M5Tab-Macintosh",
     "esp32p4_pioarduino_rev3": "M5Tab-Macintosh-Rev3",
     "waveshare_p4_101": "M5Tab-Macintosh-Waveshare-P4-10.1",

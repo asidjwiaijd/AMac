@@ -34,7 +34,7 @@ uint64_t BoardSD_CardSizeMB(void);
 #if defined(BOARD_M5STACK_TAB5)
   #include <SD.h>
   #define SD_FS SD
-#elif defined(BOARD_WAVESHARE_P4_101)
+#elif defined(BOARD_WAVESHARE_P4_101) || defined(BOARD_AMAC_P4)
   #include <SD_MMC.h>
   #define SD_FS SD_MMC
 #endif

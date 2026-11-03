@@ -33,6 +33,13 @@ def create_merged_binary(source, target, env):
     
     project_dir = env.subst("$PROJECT_DIR")
     build_dir = env.subst("$BUILD_DIR")
+
+    if env["PIOENV"].startswith("amac_p4_"):
+        link_map = Path(build_dir, "firmware.map").read_text(errors="replace")
+        if "esp_hosted_transport_amac.c.o" not in link_map:
+            raise RuntimeError("aMac C5 transport object is missing from the link map")
+        if re.search(r"libesp_hosted\.a\(transport_drv\.c\.(?:obj|o)\)", link_map):
+            raise RuntimeError("SDK C6 transport was linked into aMac; reject this image")
     
     # Prebuilt P4 image headers do not reliably encode their minimum revision.
     # Verify the actual linked SDK before labeling an image for download.
@@ -74,6 +81,7 @@ def create_merged_binary(source, target, env):
     
     # Possible esptool locations
     possible_paths = [
+        os.path.join(env.PioPlatform().get_package_dir("tool-esptoolpy") or "", "esptool.py"),
         # PlatformIO's esptool
         os.path.expanduser("~/.platformio/packages/tool-esptoolpy/esptool.py"),
         # Homebrew (macOS)
@@ -113,8 +121,12 @@ def create_merged_binary(source, target, env):
     
     # Build esptool merge command
     # Use older syntax (merge_bin) for compatibility with PlatformIO's bundled esptool
+    # pioarduino installs esptool dependencies into its own Python venv.
+    # SCons' sys.executable belongs to PlatformIO and may not have rich-click.
+    merge_python = (env.PioPlatform().setup_python_env(env)[0]
+                    if hasattr(env.PioPlatform(), "setup_python_env") else sys.executable)
     cmd = [
-        sys.executable, esptool_cmd, "--chip", "esp32p4", "merge_bin",
+        merge_python, esptool_cmd, "--chip", "esp32p4", "merge_bin",
         "-o", output_file,
         bootloader_offset, bootloader,
         partition_offset, partitions,
@@ -136,10 +148,21 @@ def create_merged_binary(source, target, env):
             metadata = {
                 "environment": env["PIOENV"], "chip_variant": variant,
                 "minimum_chip_revision": minimum_revision,
+                "merged_sha256": hashlib.sha256(Path(output_file).read_bytes()).hexdigest(),
                 "components": {Path(path).name: hashlib.sha256(Path(path).read_bytes()).hexdigest()
                                for path in (bootloader, partitions, firmware)},
             }
+            git_head = subprocess.run(["git", "-C", project_dir, "rev-parse", "HEAD"],
+                                      capture_output=True, text=True)
+            git_status = subprocess.run(["git", "-C", project_dir, "status", "--porcelain"],
+                                        capture_output=True, text=True)
+            metadata["source_commit"] = git_head.stdout.strip() if git_head.returncode == 0 else None
+            metadata["source_dirty"] = bool(git_status.stdout.strip()) if git_status.returncode == 0 else None
+            if env["PIOENV"].startswith("amac_p4_"):
+                metadata["wifi_coprocessor"] = "esp32c5"
+                metadata["hosted_transport_version"] = "2.12.3 (source override)"
             Path(build_dir, "release-build.json").write_text(json.dumps(metadata, indent=2) + "\n")
+            Path(release_dir, TARGETS[env["PIOENV"]] + ".json").write_text(json.dumps(metadata, indent=2) + "\n")
             # Verify the output
             size = os.path.getsize(output_file)
             print(f"[MERGE] Created: {output_file}")
