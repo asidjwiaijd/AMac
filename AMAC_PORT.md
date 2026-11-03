@@ -28,7 +28,7 @@
 | 显示管线 | 新增原生横屏映射，1:1 显示；0/180 度旋转、1/2/4/8 bit 索引色、截图/像素校验共用同一坐标 |
 | 启动菜单 | 480 像素宽时把 Memory/Options 改为上下排列，媒体列表保留滚动 |
 | 背光 | GPIO13 开关，默认高电平开启；亮度/LED 电流由前板 R3 模拟电路调整，软件百分比只有开/关效果 |
-| microSD | SDMMC slot 0，4-bit，20 MHz，失败后尝试 400 kHz；固定3V3供电，不自动格式化 |
+| microSD | SDMMC slot 0，4-bit，20 MHz，失败后尝试 400 kHz；卡固定3V3供电，IO LDO4 固定3.3V，不自动格式化/切换1.8V |
 | SD 检测 | GPIO45 只作输入；移除 EV board 把它当电源输出的定义 |
 | Wi-Fi | 模组内部 SDIO slot 1；C5 reset54，CLK18/CMD19/D0..3=14..17；同版本源码重编通信入口，校验 C5 |
 | USB 键鼠 | 复用上游 USB Host/HID/hub 路径，经底板 U1 hub；SDK 已启用多层 hub |

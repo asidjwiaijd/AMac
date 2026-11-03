@@ -58,3 +58,9 @@ R3 调节，软件只开关 GPIO13，默认高电平开启；器件型号未写�
 网表中的封装型号不能证明具体 USB hub、充电芯片或晶体管型号。
 没有触摸控制器、音频编解码器和 I2S 扬声器连接；不沿用 Tab5/Waveshare
 的触摸和音频驱动。红外仅配置为输入，没有给定遥控协议或键码表。
+
+P4 的 SD IO 参考电源与卡 VDD 是不同概念。板级初始化把内部 LDO4 固定在
+3.3V；SD_MMC 使用外部固定供电模式，不自动切换1.8V。网表的卡电源与
+pull-up 都接 VCC_3V3，不能沿用开发板的动态 IO 电压策略。模组内
+VDDPST_5 与 LDO4 的连线需随上板测量核对；背景见
+[乐鑫 SDMMC IO 电源说明](https://docs.espressif.com/projects/esp-idf/en/stable/esp32p4/api-reference/peripherals/sdmmc_host.html#configuring-voltage-level)。
