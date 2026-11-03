@@ -1,8 +1,8 @@
 # aMac P4C5 移植说明
 
-2026-11-03，版本 `5.4-beta.1+amac.0.1.0`。这是已通过编译和主机回归检查的
-参考移植版；尚未连接实板验证。屏幕厂商未提供专用初始化表，按本次确认先用
-乐鑫参考配置。
+2026-11-03，版本 `5.4-beta.1+amac.0.1.1`。这是使用用户补充的
+`kernel修改说明.zip` 中屏幕初始化表和时序的移植版，尚未连接实板验证。
+完整依据和格式适配见 [屏幕驱动参考](hardware/reference/HD20034_KERNEL_REFERENCE.md)。
 
 ## 代码与硬件基线
 
@@ -24,7 +24,7 @@
 
 | 部分 | 实现与边界 |
 |---|---|
-| LCD | 两条 MIPI DSI 数据 lane，RGB565，单个 345600 字节 scanout framebuffer；GPIO23 复位 |
+| LCD | 两条 MIPI DSI 数据 lane，240 Mbps/lane；附件41条初始化命令；RGB565、单个345600字节 scanout framebuffer；GPIO23复位 |
 | 显示管线 | 新增原生横屏映射，1:1 显示；0/180 度旋转、1/2/4/8 bit 索引色、截图/像素校验共用同一坐标 |
 | 启动菜单 | 480 像素宽时把 Memory/Options 改为上下排列，媒体列表保留滚动 |
 | 背光 | GPIO13 开关，默认高电平开启；亮度/LED 电流由前板 R3 模拟电路调整，软件百分比只有开/关效果 |
@@ -126,16 +126,23 @@ python tools/mac_control.py --port COM7 panel-verify
 Wi-Fi 可通过 SD 文件设置 `wifi_ssid`、`wifi_pass`、`wifi_auto=yes`，或用
 `boot-set` 配置后 `boot-wifi-connect`。本版不替换 C5 从机固件。
 
-## 屏幕参考参数与实机验证
+## 屏幕驱动参数与实机验证
 
-规格书没有给出面板专用 GIP/gamma 初始化和视频前后肩参数。已按本次确认使用
-乐鑫 ST7701 480×360 参考表：15 MHz pixel clock；水平 BP/SYNC/FP=10/10/20，
-垂直=10/10/10，2 lanes × 500 Mbps。参考宏虽命名为60HZ，按这些数值计算
-实际约73.96 Hz，不把宏名称当作实测刷新率。
+屏幕初始化使用补充附件 `tspi-rk3566-dsi-v10.dtsi` 的41条 DCS 命令，包含完整
+gamma/GIP 数据及每条命令后的延时。通过 `st7701_vendor_config_t.init_cmds`
+传给驱动，替换首版的乐鑫默认表。15 MHz pixel clock；水平 FP/BP/SYNC=
+48/43/10，垂直=18/28/10，2 lanes × 240 Mbps，按总时序计算约62.06 Hz。
+复位低电平保持200 ms，释放后等120 ms；按附件保留准备20 ms和使能前150 ms。
 
-修改入口：`src/board/amac/amac_pins.h` 的时钟/背光极性和
-`board_display_amac.cpp` 的 DPI 参数。取得厂商初始化表后，可通过
-`st7701_vendor_config_t.init_cmds` 接入；不要从其它分辨率屏幕推导 GIP 参数。
+附件 Linux 配置为 RGB888；当前 MiniGfx/模拟器帧缓冲为 RGB565，因此 P4 的
+framebuffer、DSI 数据格式及 ST7701 COLMOD=0x55 都保持 RGB565。没有单独把
+DSI 改成 RGB888 后继续发送两字节像素。该格式适配同样需要实机颜色验证。
+
+参考文件保存在 `hardware/reference/tspi-rk3566-dsi-v10.dtsi`；转换工具为
+`scripts/generate_hd20034_profile.py`，生成并跟踪
+`src/board/amac/hd20034_panel_profile.h`。构建会用 `--check` 拒绝过期配置。
+新面板数据确认后修改参考来源、重新生成并运行测试；背光极性仍在
+`src/board/amac/amac_pins.h`，P4 GPIO 始终以最新网表为准。
 
 硬件验证应覆盖：排线和插座的实际编号方向、背光极性/模拟电流、LCD ID 与
 纯色图/旋转/持续刷新、SD 长时间读写、hub 后键鼠热插拔、C5 与 SD 并发运行。
@@ -154,7 +161,8 @@ python -m unittest test_issue_fixes.ReleaseImagesTests test_issue_fixes.DSIPatch
 git status --short --branch
 ```
 
-aMac 检查包含网表/引脚对应、厂商源码校验、三种板型的随机显示管线、所有索引
+aMac 检查包含附件41条DCS命令的逐字节比对、复位/背光/失败清理、网表/引脚
+对应、厂商源码校验、三种板型的随机显示管线、所有索引
 色深、两种旋转、失败重试、生命周期及启动界面像素一致性。界面截图在
 `artifacts/amac-ui/`。本机原生检查使用 G++；需要 ASan 时在支持的环境设置
 `CXX=clang++` 和 `AMAC_SANITIZERS=address,undefined`。

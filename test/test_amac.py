@@ -27,6 +27,35 @@ def netlist(path):
 
 
 class HardwareTests(unittest.TestCase):
+    def test_supplied_panel_records_and_timing(self):
+        source = ROOT / "hardware/reference/tspi-rk3566-dsi-v10.dtsi"
+        self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(),
+                         "337b30a225c043c4aa904b9bd92ed343390ea7197e4ac228517b5644d94db088")
+        subprocess.run([sys.executable, str(ROOT / "scripts/generate_hd20034_profile.py"), "--check"], check=True)
+        block = source.read_text(encoding="utf-8").split("panel-init-sequence = [", 1)[1].split("]", 1)[0]
+        lines = (line.split("//", 1)[0].strip() for line in block.splitlines())
+        expected = [bytes.fromhex(line) for line in lines if line]
+        profile = (ROOT / "src/board/amac/hd20034_panel_profile.h").read_text()
+        # Independent, line-based reference parser checks the generated data
+        # byte-for-byte, including packet type, command lengths and delays.
+        actual = []
+        for command, length, delay, data in re.findall(
+                r"\{0x([0-9A-F]{2}), (\d+), (\d+), \{([^}]*)\}\}", profile):
+            length, delay = int(length), int(delay)
+            payload = [int(b, 16) for b in data.split(",")][:length]
+            packet = 0x05 if length == 0 else 0x15 if length == 1 else 0x39
+            actual.append(bytes([packet, delay, length + 1, int(command, 16), *payload]))
+        self.assertEqual(actual, expected)
+        self.assertEqual(len(actual), 41)
+        self.assertEqual(sum(row[1] for row in actual), 730)
+        for name, prop in {"HFrontPorch": "hfront-porch", "HBackPorch": "hback-porch",
+                           "HSync": "hsync-len", "VFrontPorch": "vfront-porch",
+                           "VBackPorch": "vback-porch", "VSync": "vsync-len",
+                           "LaneRateMbps": "rockchip,lane-rate", "DataLanes": "dsi,lanes",
+                           "PixelClockHz": "clock-frequency"}.items():
+            value = int(re.search(re.escape(prop) + r"\s*=\s*<(\d+)>", source.read_text())[1])
+            self.assertRegex(profile, rf"k{name} = {value};")
+
     def test_netlist_pads_and_gpio_map(self):
         bottom = netlist(ROOT / "hardware/netlists/Netlist_sch_bottom_2026-11-02.tel")
         front = netlist(ROOT / "hardware/netlists/Netlist_sch_front_2026-11-02-1.tel")
@@ -87,7 +116,7 @@ class HardwareTests(unittest.TestCase):
 
 
 class NativeIntegrationTests(unittest.TestCase):
-    def compile_run(self, source, board, extras, output=None):
+    def compile_run(self, source, board, extras, output=None, include_dirs=()):
         compiler = os.environ.get("CXX") or shutil.which("clang++") or shutil.which("g++")
         self.assertIsNotNone(compiler, "Install a host C++17 compiler or set CXX")
         temp_root = ROOT / "artifacts/tmp"
@@ -98,7 +127,7 @@ class NativeIntegrationTests(unittest.TestCase):
             sanitizer = os.environ.get("AMAC_SANITIZERS")
             if sanitizer:
                 args += [f"-fsanitize={sanitizer}", "-fno-omit-frame-pointer"]
-            for directory in ["test/display_stubs", "src/board", "src/basilisk",
+            for directory in [*include_dirs, "test/display_stubs", "src/board", "src/basilisk",
                               "src/basilisk/include", "src/generated"]:
                 args += ["-I", str(ROOT / directory)]
             args += [str(ROOT / source), *[str(ROOT / p) for p in extras], "-o", str(binary)]
@@ -117,6 +146,11 @@ class NativeIntegrationTests(unittest.TestCase):
             with self.subTest(board=board):
                 self.compile_run("test/test_display_pipeline.cpp", board,
                                  ["src/board/board_display_surface.cpp", "src/board/mini_gfx/mini_gfx.cpp"])
+
+    def test_amac_panel_bringup(self):
+        self.compile_run("test/test_amac_panel_driver.cpp", "BOARD_AMAC_P4",
+                         ["src/board/amac/board_display_amac.cpp", "src/board/board_display_surface.cpp",
+                          "src/board/mini_gfx/mini_gfx.cpp"], include_dirs=["test/panel_stubs"])
 
     def test_preboot_layout_and_panel_pixels(self):
         subprocess.run([sys.executable, str(ROOT / "scripts/build_assets.py")], check=True, cwd=ROOT)

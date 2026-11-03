@@ -29,11 +29,5 @@
 #define AMAC_BACKLIGHT_ON_LEVEL  1
 #endif
 
-// The supplied PDF contains no panel-specific GIP/gamma initialization or
-// video porches. Use Espressif's 480x360 reference until qualified on hardware.
-#ifndef AMAC_LCD_PIXEL_CLOCK_MHZ
-#define AMAC_LCD_PIXEL_CLOCK_MHZ  15
-#endif
-#ifndef AMAC_LCD_LANE_RATE_MBPS
-#define AMAC_LCD_LANE_RATE_MBPS   500
-#endif
+// Panel timing and initialization come from hd20034_panel_profile.h, generated
+// from the display DTSI supplied in kernel修改说明.zip.
