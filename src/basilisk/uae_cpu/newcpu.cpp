@@ -55,6 +55,9 @@ B2_mutex *spcflags_lock = NULL;
 bool quit_program = false;
 extern bool boot_control_pending;
 extern void cpu_do_check_control(void);
+#if defined(BOARD_AMAC_P4)
+extern bool low_battery_control_pending;
+#endif
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
 volatile spcflags_t spcflags_urgent = 0;
 #endif
@@ -1939,7 +1942,11 @@ int m68k_do_specialties (void)
 	while (SPCFLAGS_TEST( SPCFLAG_STOP )) {
 		if (unlikely(cpu_quit_requested))
 			return 1;
-		if (__atomic_load_n(&boot_control_pending, __ATOMIC_ACQUIRE)) cpu_do_check_control();
+		if (__atomic_load_n(&boot_control_pending, __ATOMIC_ACQUIRE)
+#if defined(BOARD_AMAC_P4)
+		    || __atomic_load_n(&low_battery_control_pending, __ATOMIC_ACQUIRE)
+#endif
+		) cpu_do_check_control();
 		if (SPCFLAGS_TEST( SPCFLAG_INT | SPCFLAG_DOINT )){
 			SPCFLAGS_CLEAR( SPCFLAG_INT | SPCFLAG_DOINT );
 			int intr = intlev ();
@@ -2248,7 +2255,11 @@ void m68k_do_execute (void)
 		
 		// Decrement tick counter by number of instructions actually executed
 		// This maintains accurate instruction counting for IPS monitoring
-		if (__atomic_load_n(&boot_control_pending, __ATOMIC_ACQUIRE)) cpu_do_check_control();
+		if (__atomic_load_n(&boot_control_pending, __ATOMIC_ACQUIRE)
+#if defined(BOARD_AMAC_P4)
+		    || __atomic_load_n(&low_battery_control_pending, __ATOMIC_ACQUIRE)
+#endif
+		) cpu_do_check_control();
 		emulated_ticks -= instructions_executed;
 			if (emulated_ticks <= 0) {
 #if CPU_CORE_PROFILE

@@ -1110,6 +1110,11 @@ static void processLegacyCommand(char *command)
     }
     if (!s_emulator_ready) {
         if (strcmp(command, "PANEL VERIFY") == 0) {
+            const bool lock_here = !s_serial_screenshot_locked;
+            if (lock_here && !AutomationLockDisplay()) {
+                protocolReply("@B2 ERR PANEL busy\n");
+                return;
+            }
             // Preboot: the panel must hold the presented canvas, pixel-doubled.
             uint32_t checked = 0, mismatched = 0;
             int first_x = -1, first_y = -1;
@@ -1119,6 +1124,7 @@ static void processLegacyCommand(char *command)
                 protocolReply("@B2 OK PANEL checked=%lu mismatched=%lu first=%d,%d\n",
                               (unsigned long)checked, (unsigned long)mismatched, first_x, first_y);
             }
+            if (lock_here) AutomationUnlockDisplay();
             return;
         }
         protocolReply("@B2 ERR emulator_not_ready\n");
@@ -1146,6 +1152,11 @@ static void processLegacyCommand(char *command)
         return;
     }
     if (strcmp(command, "PANEL VERIFY") == 0) {
+        const bool lock_here = !s_serial_screenshot_locked;
+        if (lock_here && !AutomationLockDisplay()) {
+            protocolReply("@B2 ERR PANEL busy\n");
+            return;
+        }
         uint32 checked = 0, mismatched = 0;
         int first_x = -1, first_y = -1;
         if (!VideoVerifyPanel(&checked, &mismatched, &first_x, &first_y)) {
@@ -1154,6 +1165,7 @@ static void processLegacyCommand(char *command)
             protocolReply("@B2 OK PANEL checked=%lu mismatched=%lu first=%d,%d\n",
                           (unsigned long)checked, (unsigned long)mismatched, first_x, first_y);
         }
+        if (lock_here) AutomationUnlockDisplay();
         return;
     }
     if (strcmp(command, "PERF FREE") == 0) {
@@ -1777,4 +1789,15 @@ extern "C" void AutomationExit(void)
     InputAutomationReleaseAll();
     // Keep the serial task and its mutex alive on the safe-to-power-off screen.
     // The main idle loop continues to serve BOOT commands there.
+}
+
+extern "C" bool AutomationLockDisplay(void)
+{
+    return s_screenshot_mutex == NULL ||
+           xSemaphoreTake(s_screenshot_mutex, pdMS_TO_TICKS(1000)) == pdTRUE;
+}
+
+extern "C" void AutomationUnlockDisplay(void)
+{
+    if (s_screenshot_mutex != NULL) xSemaphoreGive(s_screenshot_mutex);
 }

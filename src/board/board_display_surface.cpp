@@ -10,11 +10,18 @@ static int s_first_row = 0, s_last_row = 0;
 
 bool BoardDisplay_AttachSurface(void *framebuffer, int panel_width, int panel_height)
 {
-    if (s_surface_mutex) return true;
     const int expected_w = BOARD_PANEL_NATIVE_LANDSCAPE ? BOARD_DISPLAY_WIDTH : BOARD_DISPLAY_HEIGHT;
     const int expected_h = BOARD_PANEL_NATIVE_LANDSCAPE ? BOARD_DISPLAY_HEIGHT : BOARD_DISPLAY_WIDTH;
     if (panel_width != expected_w || panel_height != expected_h)
         return false;
+    if (s_surface_mutex) {
+        if (s_gfx.portraitFb() == framebuffer) return true;
+        xSemaphoreTake(s_surface_mutex, portMAX_DELAY);
+        const bool attached = s_gfx.beginExternalFb(framebuffer, BOARD_DISPLAY_WIDTH, BOARD_DISPLAY_HEIGHT,
+                                                    panel_width, panel_height);
+        xSemaphoreGive(s_surface_mutex);
+        return attached;
+    }
     SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
     if (!mutex) return false;
     if (!s_gfx.beginExternalFb(framebuffer, BOARD_DISPLAY_WIDTH, BOARD_DISPLAY_HEIGHT,

@@ -19,6 +19,9 @@ bool AutomationStartSerial(void);
 void AutomationExit(void);
 void AutomationPrepareNetwork(void);
 bool AutomationSerialCaptureActive(void);
+// Serialize panel destruction/rebinding with serial and HTTP screenshots.
+bool AutomationLockDisplay(void);
+void AutomationUnlockDisplay(void);
 
 #ifdef __cplusplus
 }

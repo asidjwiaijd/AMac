@@ -26,6 +26,7 @@
 #include "board_display.h"
 #include "board_power.h"
 #include "power_manager.h"
+#include "low_battery.h"
 #include "touch_overlay.h"
 
 #if defined(BOARD_M5STACK_TAB5)
@@ -1301,6 +1302,9 @@ static void inputTask(void *param)
     while (input_task_running) {
         Board_Update();
         BoardPower_Poll();
+#if defined(BOARD_AMAC_P4)
+        LowBatteryPoll();
+#endif
         PowerManagerIdlePoll();
         
         processTouchInput();

@@ -1,6 +1,6 @@
 # aMac P4C5 移植说明
 
-2026-11-03，版本 `5.4-beta.1+amac.0.1.1`。这是使用用户补充的
+2026-11-05，版本 `5.4-beta.1+amac.0.2.0`。这是使用用户补充的
 `kernel修改说明.zip` 中屏幕初始化表和时序的移植版，尚未连接实板验证。
 完整依据和格式适配见 [屏幕驱动参考](hardware/reference/HD20034_KERNEL_REFERENCE.md)。
 
@@ -33,7 +33,7 @@
 | Wi-Fi | 模组内部 SDIO slot 1；C5 reset54，CLK18/CMD19/D0..3=14..17；同版本源码重编通信入口，校验 C5 |
 | USB 键鼠 | 复用上游 USB Host/HID/hub 路径，经底板 U1 hub；SDK 已启用多层 hub |
 | 串口 | UART0 TX37/RX38，经调试切换和 USB1 串口桥，115200；USB2 不作为默认控制台 |
-| 电池 | GPIO22 电压分压、GPIO21 CHRG 钩子已保留，默认不向 Mac 报告电量；缺少电池参数与独立 VBUS/电流检测 |
+| 电池 | GPIO22 原始电压用于两级休眠保护；GPIO21 读取 CHRG；向 Mac 报告的百分比估算仍默认关闭 |
 | 红外 | GPIO12 仅设为输入；未指定遥控协议/键码，不把 IR_OUT 当 PWM 输出 |
 | 音频/触摸 | 这两份网表未给出对应硬件，使用空接口，隐藏 Sound 选项 |
 | USB Disk | 禁用：当前 HS USB 路径接 hub，不能用上游 TinyUSB HS device 模式导出 SD 卡 |
@@ -148,9 +148,45 @@ DSI 改成 RGB888 后继续发送两字节像素。该格式适配同样需要�
 纯色图/旋转/持续刷新、SD 长时间读写、hub 后键鼠热插拔、C5 与 SD 并发运行。
 这份网表只能证明连接，无法证明插座接触面方向、器件型号及实际出厂芯片版本。
 
-电池钩子默认关闭。确认单节锂电池及 ADC 校准后，可显式编译
-`AMAC_ENABLE_BATTERY_ESTIMATE=1`；仅是电压估计，不提供剩余时间。CHRG 只能
-证明正在充电，无法区分充满后仍接 USB 与断开 USB，不把这项估计当作电量计。
+向 Mac 报告电量的钩子默认关闭。确认单节锂电池及 ADC 校准后，可显式编译
+`AMAC_ENABLE_BATTERY_ESTIMATE=1`。自动休眠保护独立采集原始电压，不依赖该开关。
+CHRG 只能证明正在充电，无法区分充满后仍接 USB 与断开 USB。
+
+## 电压保护与休眠
+
+两种 aMac 构建均默认启用 GPIO22 电压保护。8次ADC采样取平均后乘2，
+按实测电压判断，不用平滑后的电量百分比。以下规则适用于2.5–4.5 V的有效采样，
+0 V等无效读数会取消运行中的待机请求。阈值在
+`src/basilisk/include/low_battery.h`。
+
+| 电池电压 | 持续条件与行为 |
+| --- | --- |
+| 3.90 V及以上 | 正常运行 |
+| 3.70 V及以上、低于3.90 V | 持续5秒后熄屏、暂停68k执行，保留Mac内存；键盘或鼠标活动唤醒 |
+| 低于3.70 V | 持续5秒后向Finder发送正常关机事件；待Mac关机并卸载磁盘后进入P4深度休眠 |
+
+键鼠唤醒后保留60秒操作时间，持续输入会延长该时间。3.70 V深睡条件优先，
+不受这段时间影响。待机期间继续检测电压，可升级到深睡。深睡前应用的保存/
+取消对话框需要用户处理，代码等待实际Mac PowerOff后再关闭硬件。Finder使用
+`MACS`目标签名及`FNDR/shut`事件，同一发送代码已用System 7和Mac OS 8实测，
+两份系统盘在关机后均带有HFS正常卸载标记。
+
+深睡前同步文件、XPRAM和Mac时钟，卸载SD，关闭Wi-Fi，向LCD发送Display Off/
+Sleep In并释放DSI/PHY，关闭背光并保持LCD/C5复位。RTC保存Mac时钟与计时锚点，
+每300秒唤醒一次。检查时保持屏幕、SD和Wi-Fi未初始化，电压达到3.90 V后完整
+开机；低电压或无效采样则继续深睡。普通复位/冷启动会重新检查3.70 V条件。
+深睡唤醒会重新启动Mac，运行中的应用和RAM状态在深睡后释放。
+
+`python tools/mac_control.py --port COM7 power` 的 `raw_mv` 字段提供自动保护
+最近一次采样电压，`display=asleep` 表示模拟器待机。休眠日志使用`[POWER]`前缀。
+
+RTC使用固定SDK的内部RC时钟，深睡中可能随温度漂移。P4早期工程样片还受
+DIG-399的数字GPIO保持限制影响，需测量C5复位在深睡中的实际状态。SD、USB Hub、
+稳压器和电池100K+100K分压支路仍由电路供电，整机休眠电流需要实测。
+RTC连续计时依赖板卡持续供电。依据见
+[乐鑫睡眠模式](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32p4/api-reference/system/sleep_modes.html)、
+[系统时间](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32p4/api-reference/system/system_time.html)及
+[Apple关机事件说明](https://developer.apple.com/library/archive/documentation/mac/pdf/Processes/Shutdown.pdf)。
 
 ## 电脑端预览
 

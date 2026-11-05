@@ -3,6 +3,18 @@
 #include <time.h>
 #include "esp_timer.h"
 #include "mac_clock.h"
+#if defined(BOARD_AMAC_P4)
+#include "esp_attr.h"
+#include "esp_system.h"
+#include "esp_rtc_time.h"
+
+static RTC_DATA_ATTR struct {
+    uint32_t magic;
+    uint64_t mac_us;
+    uint64_t rtc_us;
+    bool user_set;
+} sleep_clock = {};
+#endif
 
 // Build date/time as base for Mac clock
 // Used only until the user first sets the guest clock.
@@ -62,6 +74,7 @@ static bool save_attempted = false;
 static void initialize_clock() {
     if (initialized) return;
     uint32_t seconds = static_cast<uint32_t>(get_build_timestamp() + 2082844800LL);
+    uint32_t fraction_us = 0;
     nvs_handle_t handle;
     if (nvs_open("basilisk-clock", NVS_READONLY, &handle) == ESP_OK) {
         uint32_t saved_seconds;
@@ -69,11 +82,31 @@ static void initialize_clock() {
         if (user_set) seconds = saved_seconds;
         nvs_close(handle);
     }
+#if defined(BOARD_AMAC_P4)
+    const uint64_t rtc_now = esp_rtc_get_time_us();
+    if (esp_reset_reason() == ESP_RST_DEEPSLEEP && sleep_clock.magic == 0x414d434b &&
+        rtc_now >= sleep_clock.rtc_us) {
+        const uint64_t mac_us = sleep_clock.mac_us + rtc_now - sleep_clock.rtc_us;
+        seconds = uint32_t(mac_us / 1000000);
+        fraction_us = uint32_t(mac_us % 1000000);
+        user_set = sleep_clock.user_set;
+    }
+#endif
     const uint64_t now = esp_timer_get_time();
-    clock_state.set(seconds, now);
+    clock_state.set(seconds, now, fraction_us);
     last_save_us = now;
     initialized = true;
 }
+
+#if defined(BOARD_AMAC_P4)
+void MacClockPrepareDeepSleep() {
+    initialize_clock();
+    sleep_clock.magic = 0x414d434b;
+    sleep_clock.mac_us = clock_state.readMicroseconds(esp_timer_get_time());
+    sleep_clock.rtc_us = esp_rtc_get_time_us();
+    sleep_clock.user_set = user_set;
+}
+#endif
 
 uint32_t TimerDateTime(void) {
     initialize_clock();
