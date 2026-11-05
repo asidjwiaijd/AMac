@@ -8,10 +8,14 @@
 struct Event { char kind; int pin; unsigned value; };
 static std::vector<Event> events;
 static std::vector<uint16_t> framebuffer(480 * 360);
+static std::vector<uint16_t> recovered_framebuffer(480 * 360);
 static bool fail_panel = true;
 static int deleted_io, deleted_bus, released_ldo, initialized;
 static esp_lcd_dpi_panel_config_t dpi_config;
 static std::vector<st7701_lcd_init_cmd_t> commands;
+static std::vector<int> sleep_commands;
+extern "C" void AmacDisplayPrepareDeepSleep();
+extern "C" bool AmacDisplayRecoverFromSleepFailure();
 
 void digitalWrite(int pin, int level) { events.push_back({'G', pin, (unsigned)level}); }
 void pinMode(int, int) {}
@@ -37,6 +41,12 @@ esp_err_t esp_lcd_new_panel_io_dbi(void *, const esp_lcd_dbi_io_config_t *cfg, v
     return ESP_OK;
 }
 esp_err_t esp_lcd_panel_io_del(void *) { ++deleted_io; return ESP_OK; }
+esp_err_t esp_lcd_panel_io_tx_param(void *, int command, const void *data, size_t size)
+{
+    assert(data == nullptr && size == 0);
+    sleep_commands.push_back(command);
+    return ESP_OK;
+}
 esp_err_t esp_lcd_new_panel_st7701_mipi(void *, const esp_lcd_panel_dev_config_t *cfg, void **out)
 {
     if (fail_panel) return ESP_ERR_NO_MEM;
@@ -53,7 +63,7 @@ esp_err_t esp_lcd_panel_del(void *) { return ESP_OK; }
 esp_err_t esp_lcd_dpi_panel_get_frame_buffer(void *, uint32_t count, void **out)
 {
     assert(count == 1);
-    *out = framebuffer.data();
+    *out = initialized > 1 ? recovered_framebuffer.data() : framebuffer.data();
     return ESP_OK;
 }
 
@@ -95,5 +105,10 @@ int main()
     assert(events[i].kind == 'G' && events[i].pin == 13 && events[i].value == HIGH);
     const size_t count = events.size();
     assert(BoardDisplay_Init() && events.size() == count); // bring-up is idempotent
-    std::puts("panel bring-up: custom DCS table, timing, reset, backlight and cleanup OK");
+    AmacDisplayPrepareDeepSleep();
+    assert((sleep_commands == std::vector<int>{0x28, 0x10}));
+    assert(AmacDisplayRecoverFromSleepFailure());
+    assert(initialized == 2);
+    assert(BoardDisplay_Gfx().portraitFb() == recovered_framebuffer.data());
+    std::puts("panel bring-up: DCS, timing, reset, backlight, sleep and recovery OK");
 }

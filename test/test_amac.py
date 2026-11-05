@@ -152,6 +152,14 @@ class NativeIntegrationTests(unittest.TestCase):
                          ["src/board/amac/board_display_amac.cpp", "src/board/board_display_surface.cpp",
                           "src/board/mini_gfx/mini_gfx.cpp"], include_dirs=["test/panel_stubs"])
 
+    def test_battery_voltage_policy_and_adc(self):
+        self.compile_run("test/test_amac_battery.cpp", "BOARD_AMAC_P4",
+                         ["src/board/amac/board_power_amac.cpp"], include_dirs=["test/power_stubs"])
+
+    def test_mac_clock_survives_deep_sleep(self):
+        self.compile_run("test/test_amac_clock_sleep.cpp", "BOARD_AMAC_P4", [],
+                         include_dirs=["test/clock_stubs"])
+
     def test_preboot_layout_and_panel_pixels(self):
         subprocess.run([sys.executable, str(ROOT / "scripts/build_assets.py")], check=True, cwd=ROOT)
         for board in ["BOARD_AMAC_P4", "BOARD_M5STACK_TAB5", "BOARD_WAVESHARE_P4_101"]:

@@ -21,6 +21,7 @@
 #include "automation.h"
 #include "mac_splash.h"
 #include "mac_clock.h"
+#include "low_battery.h"
 
 #include "esp_system.h"        /* esp_register_shutdown_handler */
 
@@ -106,6 +107,9 @@ void setup(void)
     Serial.setRxBufferSize(2048);
 #endif
     Serial.begin(115200);
+#if defined(BOARD_AMAC_P4)
+    LowBatteryBootCheck();
+#endif
     delay(500);
 
     /* We cannot reach 400 MHz on this Waveshare P4 10.1 in practice.
@@ -212,6 +216,10 @@ void setup(void)
     Sys_flush_now();
     MacClockSave(true);
 
+#if defined(BOARD_AMAC_P4)
+    LowBatteryEnterAfterShutdown();
+#endif
+
     /* Paint a classic "it is now safe to switch off your computer"
      * screen so the user isn't left with the stale last Mac framebuffer
      * (which previously showed as a cyan smear). loop() below keeps the
@@ -225,6 +233,9 @@ void setup(void)
 
 void loop(void)
 {
+#if defined(BOARD_AMAC_P4)
+    LowBatteryEnterAfterShutdown();
+#endif
     Board_Update();
     BootGUI_ControlPoll();
     if (BootGUI_RestartPending()) BootGUI_Restart();

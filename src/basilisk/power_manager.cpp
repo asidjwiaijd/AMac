@@ -39,6 +39,7 @@
 #include "emul_op.h"
 #include "power_manager.h"
 #include "board_power.h"
+#include "low_battery.h"
 
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
@@ -119,6 +120,8 @@ volatile bool guest_sleeping = false;	// inside _Sleep, CPU thread parked
 volatile bool wake_requested = false;
 volatile uint32 last_activity_ms = 0;
 volatile int idle_state = kAwake;
+portMUX_TYPE sleep_lock = portMUX_INITIALIZER_UNLOCKED;
+uint32 activity_generation = 0;
 
 // Counters for POWER STATUS
 uint32 unknown_selector_count = 0;
@@ -319,15 +322,25 @@ uint32 pmgr_op(M68kRegisters *r)
 	return error_result(kPmReplyTOErr);
 }
 
-void display_sleep_until_wake(void)
+void display_sleep_until_wake(bool check_activity = false, uint32 expected_activity = 0)
 {
-	sleep_count++;
-	Serial.println("[POWER] Sleep: display off until touched");
+	portENTER_CRITICAL(&sleep_lock);
+	if (check_activity && activity_generation != expected_activity) {
+		portEXIT_CRITICAL(&sleep_lock);
+		return;
+	}
 	wake_requested = false;
 	guest_sleeping = true;
+	portEXIT_CRITICAL(&sleep_lock);
+	sleep_count++;
+	Serial.println("[POWER] Standby: display off, input wakes");
 	BoardPower_SetDisplayState(BOARD_DISPLAY_ASLEEP);
-	while (!wake_requested)
+	while (!wake_requested) {
+#if defined(BOARD_AMAC_P4)
+		if (LowBatteryDeepSleepRequested()) break;
+#endif
 		vTaskDelay(pdMS_TO_TICKS(50));
+	}
 	BoardPower_SetDisplayState(BOARD_DISPLAY_AWAKE);
 	idle_state = kAwake;
 	last_activity_ms = millis();
@@ -652,20 +665,45 @@ bool PowerManagerSleeping(void)
 	return guest_sleeping || idle_state == kBlanked;
 }
 
+uint32 PowerManagerActivityGeneration(void)
+{
+	portENTER_CRITICAL(&sleep_lock);
+	const uint32 generation = activity_generation;
+	portEXIT_CRITICAL(&sleep_lock);
+	return generation;
+}
+
+void PowerManagerSleepUntilWake(uint32 expected_activity)
+{
+	display_sleep_until_wake(true, expected_activity);
+}
+
 void PowerManagerWake(void)
 {
+#if defined(BOARD_AMAC_P4)
+	LowBatteryNoteActivity();
+#endif
+	portENTER_CRITICAL(&sleep_lock);
+	++activity_generation;
 	last_activity_ms = millis();
 	if (guest_sleeping) wake_requested = true;
-	if (idle_state != kAwake) {
-		idle_state = kAwake;
-		BoardPower_SetDisplayState(BOARD_DISPLAY_AWAKE);
-	}
+	const bool wake_display = idle_state != kAwake;
+	idle_state = kAwake;
+	portEXIT_CRITICAL(&sleep_lock);
+	if (wake_display) BoardPower_SetDisplayState(BOARD_DISPLAY_AWAKE);
 }
 
 void PowerManagerNoteActivity(void)
 {
+#if defined(BOARD_AMAC_P4)
+	LowBatteryNoteActivity();
+#endif
+	portENTER_CRITICAL(&sleep_lock);
+	++activity_generation;
 	last_activity_ms = millis();
-	if (guest_sleeping || idle_state != kAwake) PowerManagerWake();
+	const bool wake = guest_sleeping || idle_state != kAwake;
+	portEXIT_CRITICAL(&sleep_lock);
+	if (wake) PowerManagerWake();
 }
 
 void PowerManagerIdlePoll(void)
@@ -698,7 +736,11 @@ int PowerManagerDescribe(char *buffer, size_t size)
 		"pm=%d services=%d battery=%d present=%d percent=%u mv=%u ma=%d charging=%d "
 		"connected=%d simulated=%d to_empty=%lu to_full=%lu backlight=%d display=%s "
 		"sleep_timeout=%u dim_timeout=%u dimming=%d auto_sleep_off=%d sleep_queue=%d sleeps=%lu unknown=%lu "
-		"calls=%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu",
+		"calls=%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu"
+#if defined(BOARD_AMAC_P4)
+		" raw_mv=%u"
+#endif
+		,
 		pm_enabled ? 1 : 0, services_installed ? 1 : 0, battery ? 1 : 0,
 		st.battery_present ? 1 : 0, st.percent, st.pack_mv, st.current_ma,
 		st.charging ? 1 : 0, st.charger_connected ? 1 : 0, st.simulated ? 1 : 0,
@@ -711,7 +753,11 @@ int PowerManagerDescribe(char *buffer, size_t size)
 		(unsigned long)call_counts[kCountPMgrOp], (unsigned long)call_counts[kCountIdleUpdate],
 		(unsigned long)call_counts[kCountIdleState], (unsigned long)call_counts[kCountSerialPower],
 		(unsigned long)call_counts[kCountSleep], (unsigned long)call_counts[kCountServices],
-		(unsigned long)call_counts[kCountGestalt]);
+		(unsigned long)call_counts[kCountGestalt]
+#if defined(BOARD_AMAC_P4)
+		, LowBatteryVoltageMv()
+#endif
+		);
 }
 
 // Mac OS 8.1's Gestalt (System 'ptch' 5) rebuilds the table at startup and

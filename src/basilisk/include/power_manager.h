@@ -72,6 +72,8 @@ extern bool PowerManagerActive(void);		// Mac OS sees a Power Manager
 extern bool PowerManagerSleeping(void);		// display asleep (guest sleep or idle)
 extern void PowerManagerWake(void);			// end a sleep or idle blank
 extern void PowerManagerNoteActivity(void);	// user input; restarts the idle timer
+extern uint32 PowerManagerActivityGeneration(void);
+extern void PowerManagerSleepUntilWake(uint32 expected_activity); // CPU task only, retains guest RAM
 extern void PowerManagerIdlePoll(void);		// input task: idle display-off
 extern int PowerManagerDescribe(char *buffer, size_t size);	// one-line state for serial
 

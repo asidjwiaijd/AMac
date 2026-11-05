@@ -14,14 +14,20 @@ extern "C" bool BoardPowerHW_Describe(BoardBatteryDescription *out)
     if (!out) return false;
     // No current sensor or pack capacity is provided. Do not invent time estimates.
     *out = {1, 0, 0, 1000};
-    pinMode(AMAC_CHARGE_STATUS_GPIO, INPUT);
-    analogSetPinAttenuation(AMAC_BATTERY_ADC_GPIO, ADC_11db);
     return true;
 #endif
 }
 extern "C" bool BoardPowerHW_Read(BoardBatteryRaw *out)
 {
     if (!out) return false;
+    // Automatic low-voltage protection also reads raw voltage when the
+    // optional guest percentage estimate is disabled.
+    static bool configured = false;
+    if (!configured) {
+        pinMode(AMAC_CHARGE_STATUS_GPIO, INPUT);
+        analogSetPinAttenuation(AMAC_BATTERY_ADC_GPIO, ADC_11db);
+        configured = true;
+    }
     uint32_t mv = 0;
     for (int i = 0; i < 8; ++i) mv += analogReadMilliVolts(AMAC_BATTERY_ADC_GPIO);
     *out = {};

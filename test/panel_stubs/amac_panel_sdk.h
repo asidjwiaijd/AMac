@@ -48,6 +48,7 @@ esp_err_t esp_lcd_new_dsi_bus(const esp_lcd_dsi_bus_config_t *, esp_lcd_dsi_bus_
 esp_err_t esp_lcd_del_dsi_bus(esp_lcd_dsi_bus_handle_t);
 esp_err_t esp_lcd_new_panel_io_dbi(esp_lcd_dsi_bus_handle_t, const esp_lcd_dbi_io_config_t *, esp_lcd_panel_io_handle_t *);
 esp_err_t esp_lcd_panel_io_del(esp_lcd_panel_io_handle_t);
+esp_err_t esp_lcd_panel_io_tx_param(esp_lcd_panel_io_handle_t, int, const void *, size_t);
 esp_err_t esp_lcd_new_panel_st7701_mipi(esp_lcd_panel_io_handle_t, const esp_lcd_panel_dev_config_t *, esp_lcd_panel_handle_t *);
 esp_err_t esp_lcd_panel_init(esp_lcd_panel_handle_t);
 esp_err_t esp_lcd_panel_del(esp_lcd_panel_handle_t);

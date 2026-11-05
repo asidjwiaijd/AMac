@@ -36,6 +36,7 @@
 #include "user_strings.h"
 #include "input.h"
 #include "automation.h"
+#include "low_battery.h"
 #include "boot_gui.h"
 
 #define DEBUG 1
@@ -728,6 +729,9 @@ static void reportMainPerfStats(uint32 current_time)
 // is idle and the instruction-count maintenance tick is many seconds away.
 void cpu_do_check_control(void)
 {
+#if defined(BOARD_AMAC_P4)
+    LowBatteryControlPoll();
+#endif
     BootGUI_ControlPoll();
     if (BootGUI_RestartPending()) {
         SaveXPRAM();

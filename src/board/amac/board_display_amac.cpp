@@ -137,3 +137,24 @@ extern "C" void BoardDisplay_SetFlip180(bool flip)
     s_flip = flip;
     if (s_initialized) BoardDisplay_Gfx().setFlip180(flip);
 }
+
+// Called after InputExit / VideoExit, with no remaining framebuffer users.
+extern "C" void AmacDisplayPrepareDeepSleep()
+{
+    BoardDisplay_SetBacklight(0);
+    if (s_io) {
+        esp_lcd_panel_io_tx_param(s_io, 0x28, nullptr, 0); // display off
+        esp_lcd_panel_io_tx_param(s_io, 0x10, nullptr, 0); // sleep in
+        delay(120);
+    }
+    digitalWrite(AMAC_LCD_RESET_GPIO, LOW);
+    releaseDisplay();
+    s_initialized = false;
+}
+
+extern "C" bool AmacDisplayRecoverFromSleepFailure()
+{
+    releaseDisplay();
+    s_initialized = false;
+    return BoardDisplay_Init();
+}

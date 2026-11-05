@@ -43,6 +43,7 @@
 #include "extfs.h"
 #include "emul_op.h"
 #include "power_manager.h"
+#include "low_battery.h"
 
 #ifdef ENABLE_MON
 #include "mon.h"
@@ -142,6 +143,9 @@ void EmulOp(uint16 opcode, M68kRegisters *r)
 		}
 
 		case M68K_EMUL_OP_SHUTDOWN:			// Quit emulator
+#if defined(BOARD_AMAC_P4)
+			LowBatteryGuestShutdown();
+#endif
 			QuitEmulator();
 			break;
 
@@ -733,6 +737,9 @@ void EmulOp(uint16 opcode, M68kRegisters *r)
 			break;
 
 		case M68K_EMUL_OP_IDLE_TIME:	// SynchIdleTime() patch
+#if defined(BOARD_AMAC_P4)
+			LowBatteryGuestIdle();
+#endif
 			// Sleep if no events pending
 			if (ReadMacInt32(0x14c) == 0)
 				idle_wait();
