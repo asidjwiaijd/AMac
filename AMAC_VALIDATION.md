@@ -1,6 +1,52 @@
 # aMac 验证记录
 
-## 0.1.1：补充附件屏幕配置（当前版本）
+## 0.2.0 电压触发待机与RTC深睡（当前版本）
+
+日期为2026-11-05（Asia/Taipei）。固件源码提交
+`98d3fef591583fa2c73656cf29852ba7f25d171c`，两份构建的工作区均干净，
+旁置JSON均为`source_dirty=false`。验证记录提交随后只更新本文件。
+版本标签为`amac-v0.2.0-voltage-sleep`。
+
+低于3.90 V持续5秒会熄屏并暂停模拟器，USB键盘/鼠标活动唤醒，唤醒后保留
+60秒操作时间。低于3.70 V持续5秒请求Finder关机，等待Mac PowerOff后同步、
+卸载SD并关闭屏幕/C5，进入RTC每300秒唤醒检查的深睡。恢复到3.90 V后开机。
+RTC保留Mac时钟的亚秒锚点，反复电压检查不会累计截断误差或写入NVS。
+原始ADC保护默认启用，向Mac报告百分比的开关继续独立。
+
+| 环境 | 构建结果 | 最低芯片revision | 完整镜像字节数 |
+| --- | --- | --- | --- |
+| `amac_p4_rev3` | SUCCESS | 3.1 | 1924928 |
+| `amac_p4_es` | SUCCESS | 0.1 | 1922176 |
+
+```text
+aMac-P4C5-HD20034-Rev3.bin
+adb3b46d13dc6bed548a933c74cffb41bc8efb3556e136fab6d7e22f44d9ff27
+
+aMac-P4C5-HD20034-ES.bin
+f34ce3c48e6683e3cb0200d3adce75e25345cfb4e0b19bacd4ca0b8ad5d86b18
+```
+
+9项aMac检查、8项打包/DSI检查和4项既有电源/时钟检查通过，共21项。新增覆盖
+3.70/3.90 V边界、连续低电压确认、噪声/无效采样、键鼠唤醒宽限期、深睡优先级、
+毫秒计数回绕、默认关闭百分比时的ADC路径、反复深睡后RTC的秒与亚秒计时，
+以及面板休眠、失败恢复时重新绑定不同帧缓冲。既有电源/时钟四项在WSL下开启
+ASan/UBSan，其余aMac原生检查使用Windows G++。
+
+生产`mac_shutdown.cpp`还在桌面Basilisk II中运行，分别启动System 7和Mac OS 8
+的独立磁盘副本，通过同一个SynchIdleTime入口发送`MACS`目标、`FNDR/shut`
+事件。两次进程均正常退出且返回0，两份HFS卷头均恢复`0x0100`正常卸载标记。
+日志位于`artifacts/sleep/mac7/shutdown.log`和`artifacts/sleep/mac8/shutdown.log`。
+
+两份合并镜像再次独立核对了bootloader、partition和application内容、芯片ID、
+最低revision、全部SHA-256及构建源码提交。构建同时通过C5链接守卫。
+日志在`artifacts/build/amac-p4-*-low-battery.log`和
+`artifacts/build/amac-low-battery-*-tests.log`。
+
+尚未烧录实板。实际ADC误差、USB键鼠唤醒、深睡/唤醒、RTC漂移和整机电流
+待测。早期工程样片数字GPIO保持有DIG-399限制，C5复位保持也需要实测。
+保存文档提示会等待用户处理后继续关机。深睡后Mac重新启动。
+
+## 0.1.1 补充附件屏幕配置（历史记录）
 
 日期：2026-11-03（Asia/Taipei）。代码提交
 `ac4dc4de427edd3a97dd5296423b1ea72357b21f`，两种固件构建时工作区干净，
