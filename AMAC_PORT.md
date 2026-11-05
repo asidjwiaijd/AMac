@@ -152,6 +152,13 @@ DSI 改成 RGB888 后继续发送两字节像素。该格式适配同样需要�
 `AMAC_ENABLE_BATTERY_ESTIMATE=1`；仅是电压估计，不提供剩余时间。CHRG 只能
 证明正在充电，无法区分充满后仍接 USB 与断开 USB，不把这项估计当作电量计。
 
+## 电脑端预览
+
+在 Windows 双击 [`scripts/run_amac_desktop.cmd`](scripts/run_amac_desktop.cmd)，
+用 WSL Ubuntu 的桌面版 Basilisk II 启动 System 7。客户机配置为 68040、16 MiB
+内存和 480×360。准备方法和上游镜像的寻盘问题见
+[电脑端预览说明](examples/amac-desktop/README.md)。HD20034 的点亮和颜色仍需上板验证。
+
 ## 验证命令与版本管理
 
 ```powershell

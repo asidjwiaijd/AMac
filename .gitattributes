@@ -4,3 +4,5 @@ third_party/esp_hosted_2_12_3/** text eol=lf -whitespace
 hardware/netlists/*.tel -whitespace
 # Keep the supplied display reference byte-for-byte (it contains CRCRLF).
 hardware/reference/tspi-rk3566-dsi-v10.dtsi -text -whitespace
+# The Unix Basilisk II preferences reader strips LF only.
+examples/amac-desktop/basilisk_ii_prefs text eol=lf
