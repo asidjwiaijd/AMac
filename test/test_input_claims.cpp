@@ -1,4 +1,5 @@
 #include <cstring>
+#include <cstdio>
 #include <atomic>
 #include "video_test_stubs.h"
 static int mac_screen_width=640,mac_screen_height=360;
