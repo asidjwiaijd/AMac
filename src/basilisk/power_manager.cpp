@@ -40,6 +40,7 @@
 #include "power_manager.h"
 #include "board_power.h"
 #include "low_battery.h"
+#include "birthday_gift_runtime.h"
 
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
@@ -333,6 +334,7 @@ void display_sleep_until_wake(bool check_activity = false, uint32 expected_activ
 	guest_sleeping = true;
 	portEXIT_CRITICAL(&sleep_lock);
 	sleep_count++;
+	BirthdayGift_SetSleeping(true);
 	Serial.println("[POWER] Standby: display off, input wakes");
 	BoardPower_SetDisplayState(BOARD_DISPLAY_ASLEEP);
 	while (!wake_requested) {
@@ -342,6 +344,7 @@ void display_sleep_until_wake(bool check_activity = false, uint32 expected_activ
 		vTaskDelay(pdMS_TO_TICKS(50));
 	}
 	BoardPower_SetDisplayState(BOARD_DISPLAY_AWAKE);
+	BirthdayGift_SetSleeping(false);
 	idle_state = kAwake;
 	last_activity_ms = millis();
 	guest_sleeping = false;

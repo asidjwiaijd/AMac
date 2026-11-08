@@ -21,13 +21,72 @@ DRAM_ATTR static uint8_t adb_key_claims[128] = {};
 DRAM_ATTR static bool automation_keys_down[128] = {};
 static bool automation_mouse_buttons[3] = {};
 
+#if defined(BOARD_AMAC_P4)
+static bool guest_keys_down[128] = {}, guest_mouse_down[3] = {};
+
+// Keep physical ownership, but end every forwarded press before the gift
+// takes input. Closing the gift never invents a new guest key-down: held
+// keys must be released and pressed again, including the opening modifiers.
+static void releaseGuestInputForGift()
+{
+    for (int code = 0; code < 128; ++code) {
+        if (guest_keys_down[code]) ADBKeyUp(code);
+        guest_keys_down[code] = false;
+    }
+    for (int button = 0; button < 3; ++button) {
+        if (guest_mouse_down[button]) ADBMouseUp(button);
+        guest_mouse_down[button] = false;
+    }
+}
+#endif
+
+static void routeMouseMove(int x, int y, bool relative)
+{
+    InputStateGuard guard;
+#if defined(BOARD_AMAC_P4)
+    if (BirthdayGift_MouseMove(x, y, relative)) {
+        if (!relative || x || y) PowerManagerNoteActivity();
+        return;
+    }
+#endif
+    ADBSetRelMouseMode(relative);
+    ADBMouseMoved(x, y);
+}
+
+static void routeMouseButton(uint8_t button, bool pressed)
+{
+    InputStateGuard guard;
+    if (button >= 3) return;
+#if defined(BOARD_AMAC_P4)
+    if (BirthdayGift_MouseButton(button, pressed)) {
+        if (pressed) PowerManagerNoteActivity();
+        return;
+    }
+    if (!pressed && !guest_mouse_down[button]) return;
+    guest_mouse_down[button] = pressed;
+#endif
+    if (pressed) ADBMouseDown(button);
+    else ADBMouseUp(button);
+}
+
 static void claimAdbKey(uint8_t mac_keycode)
 {
     InputStateGuard guard;
     if (mac_keycode >= 0x80) return;
     uint8_t &count = adb_key_claims[mac_keycode];
     if (count == 0) {
+#if defined(BOARD_AMAC_P4)
+        const bool was_open = BirthdayGift_Open();
+        const bool consumed = BirthdayGift_Key(mac_keycode, true);
+        if (!was_open && BirthdayGift_Open()) releaseGuestInputForGift();
+        if (consumed) PowerManagerNoteActivity();
+        else {
+            ADBKeyDown(mac_keycode);
+            guest_keys_down[mac_keycode] = true;
+        }
+#else
         ADBKeyDown(mac_keycode);
+#endif
     }
     if (count != 0xFF) {
         ++count;
@@ -47,7 +106,13 @@ static void releaseAdbKey(uint8_t mac_keycode)
     }
     --count;
     if (count == 0) {
+#if defined(BOARD_AMAC_P4)
+        BirthdayGift_Key(mac_keycode, false);
+        if (guest_keys_down[mac_keycode]) ADBKeyUp(mac_keycode);
+        guest_keys_down[mac_keycode] = false;
+#else
         ADBKeyUp(mac_keycode);
+#endif
     }
 }
 
@@ -84,8 +149,7 @@ extern "C" void InputAutomationMouseMove(int x, int y, bool relative)
         if (x >= mac_screen_width) x = mac_screen_width - 1;
         if (y >= mac_screen_height) y = mac_screen_height - 1;
     }
-    ADBSetRelMouseMode(relative);
-    ADBMouseMoved(x, y);
+    routeMouseMove(x, y, relative);
 }
 
 extern "C" void InputAutomationMouseButton(uint8_t button, bool pressed)
@@ -95,11 +159,7 @@ extern "C" void InputAutomationMouseButton(uint8_t button, bool pressed)
         return;
     }
     automation_mouse_buttons[button] = pressed;
-    if (pressed) {
-        ADBMouseDown(button);
-    } else {
-        ADBMouseUp(button);
-    }
+    routeMouseButton(button, pressed);
 }
 
 extern "C" void InputAutomationReleaseAll(void)
@@ -114,7 +174,7 @@ extern "C" void InputAutomationReleaseAll(void)
     for (uint8_t button = 0; button < 3; ++button) {
         if (automation_mouse_buttons[button]) {
             automation_mouse_buttons[button] = false;
-            ADBMouseUp(button);
+            routeMouseButton(button, false);
         }
     }
 }
@@ -131,4 +191,8 @@ static void resetInputClaims()
     memset(adb_key_claims, 0, sizeof(adb_key_claims));
     memset(automation_keys_down, 0, sizeof(automation_keys_down));
     memset(automation_mouse_buttons, 0, sizeof(automation_mouse_buttons));
+#if defined(BOARD_AMAC_P4)
+    memset(guest_keys_down, 0, sizeof(guest_keys_down));
+    memset(guest_mouse_down, 0, sizeof(guest_mouse_down));
+#endif
 }

@@ -6,6 +6,7 @@
  * pending for the next batch. Scanout itself is continuous (single buffer).
  */
 #include "dirty_range.h"
+#include "birthday_gift_runtime.h"
 #ifdef VIDEO_HOST_TEST
 #include "video_test_stubs.h"
 #else
@@ -790,7 +791,8 @@ static void renderAndPushDirtyTiles(uint8 *src_buffer, uint16 *local_palette,
             if (!isTileDirty(ty * TILES_X + tx)) continue;
             // Guest writes concurrent with rendering set new damage flags,
             // which stay pending until the next frame's acquire exchange.
-            if (indexed && !TouchOverlay_TileCovered(tx * w, ty * h, w, h)) {
+            if (indexed && !TouchOverlay_TileCovered(tx * w, ty * h, w, h) &&
+                !BirthdayGift_TileCovered(tx * w, ty * h, w, h)) {
                 // One pass from the guest frame buffer into the panel.
                 const uint8 *src = src_buffer + (uint32)ty * TILE_HEIGHT * bpr;
                 ok = BoardDisplay_PushIndexedTile(tx * w, ty * h, w, h, src, bpr, bits,
@@ -799,6 +801,7 @@ static void renderAndPushDirtyTiles(uint8 *src_buffer, uint16 *local_palette,
                 snapshotTile(src_buffer, tx, ty, snapshot, depth, bpr);
                 renderTileFromSnapshot(snapshot, local_palette, pixels);
                 TouchOverlay_CompositeTile(tx * w, ty * h, w, h, pixels);
+                BirthdayGift_CompositeTile(tx * w, ty * h, w, h, pixels);
                 ok = BoardDisplay_PushTile(tx * w, ty * h, w, h, pixels) && ok;
             }
             if ((++rendered & 7) == 0) taskYIELD();
@@ -861,6 +864,9 @@ static void reportVideoPerfStats(void)
 static void renderPendingFrame(uint16 *local_palette)
 {
     uint32_t t0, t1;
+    // Snapshot gift state once per frame; redraw its old area when it closes.
+    // Animation changes never touch the guest buffer or count as user activity.
+    const bool gift_damage = BirthdayGift_BeginFrame();
 
     // Capture a coherent mode and palette for the whole tile batch.
     portENTER_CRITICAL(&frame_spinlock);
@@ -902,6 +908,21 @@ static void renderPendingFrame(uint16 *local_palette)
         }
         preserve_splash_until_first_write = false;
         full_update = true;
+    }
+
+    if (gift_damage) {
+        // The invitation and gift fit inside this rectangle. Damage includes
+        // both so a disappearing toast or modal restores the current guest.
+        for (int ty = 0; ty < TILES_Y; ++ty) for (int tx = 0; tx < TILES_X; ++tx) {
+            const int x = tx * TILE_WIDTH, y = ty * TILE_HEIGHT;
+            if (x < 460 && x + TILE_WIDTH > 24 && y < 348 && y + TILE_HEIGHT > 28) {
+                // This is consumer-owned damage for the current snapshot.
+                const int tile = ty * TILES_X + tx;
+                dirty_tiles[tile / 32] |= 1u << (tile % 32);
+            }
+        }
+        dirty_tile_count = 0;
+        for (int i = 0; i < TOTAL_TILES; ++i) if (isTileDirty(i)) ++dirty_tile_count;
     }
 
     // If force_full_update is set (palette change, first frame), mark ALL tiles dirty

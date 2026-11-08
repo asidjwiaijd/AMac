@@ -116,7 +116,7 @@ class HardwareTests(unittest.TestCase):
 
 
 class NativeIntegrationTests(unittest.TestCase):
-    def compile_run(self, source, board, extras, output=None, include_dirs=()):
+    def compile_run(self, source, board, extras, output=None, include_dirs=(), flags=()):
         compiler = os.environ.get("CXX") or shutil.which("clang++") or shutil.which("g++")
         self.assertIsNotNone(compiler, "Install a host C++17 compiler or set CXX")
         temp_root = ROOT / "artifacts/tmp"
@@ -124,6 +124,7 @@ class NativeIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=temp_root) as folder:
             binary = Path(folder) / ("test.exe" if os.name == "nt" else "test")
             args = [compiler, "-std=c++17", "-O1", "-g", "-pthread", f"-D{board}=1"]
+            args += list(flags)
             sanitizer = os.environ.get("AMAC_SANITIZERS")
             if sanitizer:
                 args += [f"-fsanitize={sanitizer}", "-fno-omit-frame-pointer"]
@@ -144,8 +145,23 @@ class NativeIntegrationTests(unittest.TestCase):
     def test_display_all_depths_and_legacy_boards(self):
         for board in ["BOARD_AMAC_P4", "BOARD_M5STACK_TAB5", "BOARD_WAVESHARE_P4_101"]:
             with self.subTest(board=board):
-                self.compile_run("test/test_display_pipeline.cpp", board,
-                                 ["src/board/board_display_surface.cpp", "src/board/mini_gfx/mini_gfx.cpp"])
+                extras = ["src/board/board_display_surface.cpp", "src/board/mini_gfx/mini_gfx.cpp"]
+                if board == "BOARD_AMAC_P4":
+                    extras += ["src/basilisk/birthday_gift.cpp", "src/basilisk/birthday_gift_art.cpp",
+                               "src/basilisk/birthday_gift_amac.cpp"]
+                self.compile_run("test/test_display_pipeline.cpp", board, extras,
+                                 flags=["-DBIRTHDAY_HOST_TEST=1"] if board == "BOARD_AMAC_P4" else [])
+
+    def test_birthday_secrets_and_art(self):
+        subprocess.run([sys.executable, str(ROOT / "scripts/build_assets.py")], check=True, cwd=ROOT)
+        self.compile_run("test/test_birthday_gift.cpp", "BOARD_AMAC_P4",
+                         ["src/basilisk/birthday_gift.cpp", "src/basilisk/birthday_gift_art.cpp"],
+                         ROOT / "artifacts/birthday")
+
+    def test_birthday_input_handover(self):
+        self.compile_run("test/test_birthday_input.cpp", "BOARD_AMAC_P4",
+                         ["src/basilisk/birthday_gift.cpp", "src/basilisk/birthday_gift_art.cpp",
+                          "src/basilisk/birthday_gift_amac.cpp"], flags=["-DBIRTHDAY_HOST_TEST=1"])
 
     def test_amac_panel_bringup(self):
         self.compile_run("test/test_amac_panel_driver.cpp", "BOARD_AMAC_P4",

@@ -10,6 +10,7 @@
 #include "mac_clock.h"
 #include "macos_util.h"
 #include "automation.h"
+#include "birthday_gift_runtime.h"
 #include "esp_attr.h"
 #include "esp_sleep.h"
 #include "esp_system.h"
@@ -178,6 +179,7 @@ void LowBatteryGuestIdle()
     const uint32_t now = millis();
     if (last_shutdown_attempt && now - last_shutdown_attempt < 60000) return;
     last_shutdown_attempt = now;
+    BirthdayGift_Close(); // Leave Finder's save/cancel dialogs visible.
     // Finder sends Quit to applications, then unmounts its HFS volumes.
     // A save/cancel dialog remains usable; deep sleep waits for actual PowerOff.
     const int16_t err = MacRequestShutdown();
