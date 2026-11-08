@@ -1,6 +1,55 @@
 # aMac 验证记录
 
-## 0.2.0 电压触发待机与RTC深睡（当前版本）
+## 0.3.0 生日礼物彩蛋（当前版本）
+
+日期为2026-11-09（Asia/Taipei），固件版本`5.4-beta.1+amac.0.3.0`。
+两份镜像来自干净的源码提交`a0075946a3c3b603eb6f635959f52362288b7dc9`，
+JSON均为`source_dirty=false`。之后的验证提交仅更新本记录，并补齐既有主机
+测试所需的`<cstdio>`头文件，不改变固件。标签`amac-v0.3.0-birthday`。
+
+新增5个彩蛋：蛋糕许愿、Friendship OS、口袋宇宙、升级烟花、1984时间胶囊。
+启动轻提示和30秒后的一次短暂邀请引导Ctrl + Alt + G；隐藏触发、退出、
+进度和个性化说明见[BIRTHDAY_SECRETS.md](BIRTHDAY_SECRETS.md)（剧透）。
+本版使用通用英文祝福。没有修改ROM、Mac磁盘映像或RTC设置。
+
+| 环境 | 构建结果 | 最低芯片revision | 完整镜像字节数 |
+| --- | --- | --- | --- |
+| `amac_p4_rev3` | SUCCESS | 3.1 | 1936544 |
+| `amac_p4_es` | SUCCESS | 0.1 | 1933792 |
+
+```text
+aMac-P4C5-HD20034-Rev3.bin
+7ee98d1f358aaf53de07d607252067d763ffe193ba08c200ea5d37c4aa30b5b0
+
+aMac-P4C5-HD20034-ES.bin
+25061c42ab1b17ad35b6595094083cc6fcce920d970fd79d78e86519b267f187
+```
+
+24项主机检查通过：11项aMac、8项打包/DSI、4项既有电池/时钟，以及1项
+既有共享输入并发回归。C++检查在WSL下启用ASan/UBSan。重点覆盖：
+
+- 5种触发、重复按键、错序/超时、长按移开取消、毫秒计数回绕与超大鼠标位移；
+- 打开窗口前释放后台已经按下的键鼠，多个输入源继续保留各自的按键所有权，
+  关闭后没有孤立释放或按键粘连；既有并发测试完成60000次输入操作；
+- 实际彩蛋绘图按完整画面和不规则小块绘制一致，写入不越界；
+- 实际视频管线在1/2/4/8 bit和0/180度旋转下合成一致，后台帧缓冲不被修改，
+  无后台写入时动画仍刷新，刷新失败可重试，关闭后显示最新后台内容；
+- 待机期间停止彩蛋动画，恢复后重新显示；低电压请求Finder关机前收起窗口。
+
+480×360原生绘图预览位于`artifacts/birthday/`，已人工查看5页和信件行宽。
+这些图来自固件同一绘图代码，不是实板照片或桌面Basilisk II截图。
+
+两份镜像均再次独立检查了合并偏移、各组件内容及SHA256、最低revision、
+源码提交和C5标识。构建经过固定的C5链接守卫，新增彩蛋没有编译警告；
+上游/SDK既有警告仍有输出。两份0.2.0镜像及JSON已复制到
+`release/archive/amac-v0.2.0-voltage-sleep/`并逐项核对哈希。
+
+日志：`artifacts/build/amac-birthday-host-tests.log`、
+`amac-birthday-final-input-tests.log`、`amac-birthday-input-regression.log`，
+以及`artifacts/build/amac-p4-*-birthday.log`。
+仍未烧录实板；USB键鼠实际手感、显示及电源硬件验证继续待测。
+
+## 0.2.0 电压触发待机与RTC深睡（历史记录）
 
 日期为2026-11-05（Asia/Taipei）。固件源码提交
 `98d3fef591583fa2c73656cf29852ba7f25d171c`，两份构建的工作区均干净，
