@@ -28,6 +28,7 @@
 #include "power_manager.h"
 #include "low_battery.h"
 #include "touch_overlay.h"
+#include "birthday_gift_runtime.h"
 
 #if defined(BOARD_M5STACK_TAB5)
 #include <M5Unified.h>
@@ -653,6 +654,10 @@ static void processMouseReport(const usb_transfer_t *transfer, EndpointInfo *ep_
         }
     }
 
+    // A HID packet can move and click at once. Update the gift's pointer
+    // before hit testing that packet's button transitions.
+    if (dx != 0 || dy != 0) routeMouseMove(dx, dy, true);
+
     uint8_t old_buttons = usb_mouse_buttons;
 
     // Mac OS 8 right-click -> Control+Click translation.
@@ -679,9 +684,9 @@ static void processMouseReport(const usb_transfer_t *transfer, EndpointInfo *ep_
     bool mac_btn0_was = (old_buttons & 0x01) || (old_buttons & 0x02);
 
     if (mac_btn0_now && !mac_btn0_was) {
-        ADBMouseDown(0);
+        routeMouseButton(0, true);
     } else if (!mac_btn0_now && mac_btn0_was) {
-        ADBMouseUp(0);
+        routeMouseButton(0, false);
     }
 
     // Middle button (0x04) passes through as Mac button 2
@@ -689,17 +694,12 @@ static void processMouseReport(const usb_transfer_t *transfer, EndpointInfo *ep_
     bool mid_was = (old_buttons & 0x04) != 0;
 
     if (mid_now && !mid_was) {
-        ADBMouseDown(2);
+        routeMouseButton(2, true);
     } else if (!mid_now && mid_was) {
-        ADBMouseUp(2);
+        routeMouseButton(2, false);
     }
 
     usb_mouse_buttons = buttons;
-
-    if (dx != 0 || dy != 0) {
-        ADBSetRelMouseMode(true);
-        ADBMouseMoved(dx, dy);
-    }
 
     /* Forward scroll wheel as Mac arrow keys. Classic Mac OS doesn't
      * emulate ADB scroll natively (it pre-dates the wheel), so we
@@ -1355,6 +1355,7 @@ bool InputInit(void)
     last_led_state = 0;
     last_led_check_time = 0;
     resetInputClaims();
+    BirthdayGift_Init();
     memset(tab5_bindings, 0, sizeof(tab5_bindings));
     tab5_sym_active = false;
     tab5_keyboard_connected = false;
@@ -1431,6 +1432,7 @@ void InputExit(void)
     }
 
     /* Release any held overlay keys / mouse state. */
+    BirthdayGift_Close();
     TouchOverlay_Shutdown();
 
     InputAutomationReleaseAll();

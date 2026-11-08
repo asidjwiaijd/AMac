@@ -8,6 +8,9 @@
 #include "panel_surface.h"
 #define VIDEO_HOST_TEST
 #include "../src/basilisk/video_esp32.cpp"
+#if defined(BOARD_AMAC_P4) && defined(BIRTHDAY_HOST_TEST)
+#include "birthday_gift.h"
+#endif
 
 // Guest stores record 32-pixel spans: one tile at every depth.
 static constexpr int kSpanTiles = 1;
@@ -328,10 +331,80 @@ static void test_lifecycle()
     assert(!VideoCaptureFrame(pixels.data(), pixels.size(), palette, &width, &height));
 }
 
+#if defined(BOARD_AMAC_P4) && defined(BIRTHDAY_HOST_TEST)
+static void test_birthday_pipeline()
+{
+    std::vector<uint16> panel(DISPLAY_WIDTH*DISPLAY_HEIGHT);
+    std::vector<uint8> guest(MAC_SCREEN_WIDTH*MAC_SCREEN_HEIGHT);
+    assert(BoardDisplay_AttachSurface(panel.data(),DISPLAY_WIDTH,DISPLAY_HEIGHT));
+    mac_frame_buffer=guest.data(); frame_buffer_size=guest.size();
+    preserve_splash_until_first_write=false;
+    uint16 local_palette[256]={};
+    for (bool flip:{false,true}) for (auto depth:{VDEPTH_1BIT,VDEPTH_2BIT,VDEPTH_4BIT,VDEPTH_8BIT}) {
+        test_ms=100; BirthdayGift_Init();
+        BoardDisplay_Gfx().setFlip180(flip);
+        for (auto &byte:guest) byte=rng();
+        const auto original=guest;
+        initDefaultPalette(depth); renderPendingFrame(local_palette);
+        assert_panel(panel,guest,depth,flip);
+        BirthdayGift_Key(0x36,true); BirthdayGift_Key(0x3a,true); BirthdayGift_Key(0x05,true);
+        BirthdayGift_Key(0x05,false); BirthdayGift_Key(0x3a,false); BirthdayGift_Key(0x36,false);
+        test_ms=250; renderPendingFrame(local_palette);
+        auto expected=[&](Birthday::Frame frame) {
+            std::vector<uint16> colors(MAC_SCREEN_WIDTH*MAC_SCREEN_HEIGHT);
+            const int bits=1<<depth, ppb=8/bits, stride=MAC_SCREEN_WIDTH/ppb;
+            for (int y=0;y<MAC_SCREEN_HEIGHT;++y) for (int x=0;x<MAC_SCREEN_WIDTH;++x)
+                colors[y*MAC_SCREEN_WIDTH+x]=palette_rgb565[
+                    (guest[y*stride+x/ppb]>>(8-bits*(x%ppb+1)))&((1<<bits)-1)];
+            Birthday::composite(frame,0,0,MAC_SCREEN_WIDTH,MAC_SCREEN_HEIGHT,colors.data());
+            for (int y=0;y<DISPLAY_HEIGHT;++y) for (int x=0;x<DISPLAY_WIDTH;++x) {
+                const int px=flip ? DISPLAY_WIDTH-1-x:x, py=flip ? DISPLAY_HEIGHT-1-y:y;
+                if (panel[py*DISPLAY_WIDTH+px]!=colors[y*DISPLAY_WIDTH+x]) {
+                    std::fprintf(stderr,"gift depth=%d flip=%d scene=%d time=%u at (%d,%d): %04x != %04x\n",
+                        int(depth),flip,int(frame.scene),uint32_t(test_ms),x,y,
+                        panel[py*DISPLAY_WIDTH+px],colors[y*DISPLAY_WIDTH+x]);
+                    std::abort();
+                }
+            }
+        };
+        Birthday::Frame frame; frame.scene=Birthday::Scene::Cake; frame.found=1; frame.elapsed=150;
+        expected(frame); assert(guest==original);
+        const auto first_frame=panel;
+        test_ms=650; renderPendingFrame(local_palette); frame.elapsed=550;
+        expected(frame); assert(first_frame!=panel && guest==original);
+        // Overlay-only frames must retain publication failures for retry.
+        cache_result=-1; renderPendingFrame(local_palette);
+        assert(collect()>0); cache_result=ESP_OK; renderPendingFrame(local_palette);
+        assert(collect()==0); expected(frame);
+        BirthdayGift_SetSleeping(true); renderPendingFrame(local_palette);
+        assert_panel(panel,guest,depth,flip);
+        const int before=cache_calls; renderPendingFrame(local_palette);
+        assert(cache_calls==before); // no animation traffic while sleeping
+        BirthdayGift_SetSleeping(false); renderPendingFrame(local_palette); expected(frame);
+        // Closing reveals the newest guest writes, not a stale saved screen.
+        guest[0]^=0xff; VideoMarkDirtyOffset(0); BirthdayGift_Close();
+        renderPendingFrame(local_palette); assert_panel(panel,guest,depth,flip);
+        test_ms=1000; BirthdayGift_Init();
+        test_ms=31000; renderPendingFrame(local_palette);
+        Birthday::Frame toast; toast.toast=true; expected(toast);
+        test_ms=46000; renderPendingFrame(local_palette);
+        assert_panel(panel,guest,depth,flip);
+    }
+    BirthdayGift_Close(); BirthdayGift_BeginFrame();
+    mac_frame_buffer=nullptr; frame_buffer_size=0;
+    puts("PASS: real gift/video composition at all depths and rotations, animation, retries, sleeping and guest restoration");
+}
+#endif
+
 int main()
 {
     test_ranges(); test_rotation(); test_indexed_rotation(); test_indexed_1x();
-    test_indexed_source_bounds(); test_render_snapshot(); test_pipeline(); test_lifecycle();
+    test_indexed_source_bounds(); test_render_snapshot(); test_pipeline();
+#if defined(BOARD_AMAC_P4) && defined(BIRTHDAY_HOST_TEST)
+    test_birthday_pipeline();
+#endif
+    test_lifecycle();
     puts("PASS: randomized damage, panel rotation, 2x/1x indexed tiles, scaled renderer, "
          "production tile/palette pipeline, retries, splash and lifecycle");
+    return 0;
 }

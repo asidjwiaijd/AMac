@@ -488,6 +488,10 @@ void PaintSplash(void)
     Image565((Width() - HAPPY_MAC_W) / 2, (Height() - HAPPY_MAC_H) / 2, HAPPY_MAC_W,
              HAPPY_MAC_H, HAPPY_MAC_PIXELS);
 #endif
+#if defined(BOARD_AMAC_P4)
+    TextIn({20, Height() - 44, Width() - 40, 20}, "A little gift is waiting inside.", kGray63, kCenter);
+    TextIn({20, Height() - 24, Width() - 40, 20}, "Ctrl + Alt + G", kGray63, kCenter);
+#endif
 }
 
 } // namespace PrebootScreens
