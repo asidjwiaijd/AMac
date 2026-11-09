@@ -90,7 +90,11 @@ typedef uint32_t uintptr;
 typedef int32_t intptr;
 
 // File offset type
+#if defined(AOT_HOST_TEST) && defined(__linux__)
+#include <sys/types.h>
+#else
 typedef int32_t loff_t;
+#endif
 
 // Character address type
 typedef char* caddr_t;
