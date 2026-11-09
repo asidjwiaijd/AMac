@@ -13,7 +13,15 @@
 日志为`artifacts/build/amac-0.4-final-host-tests.log`。
 
 实际System 7中已验证设置回忆、终端help/ls/线索/wish/1984、关于页烟花及返回。
-两种系统的完整启动、原生入口及正常卸载结果和最终构建信息将在构建完成后记录。
+扩展的55项既有回归中53项通过，AOT两项在修复WSL脚本换行及Linux loff_t
+类型冲突后通过（26.700秒）；总计82项。最终完整重跑及构建结果随后补充。
+
+System 7及Mac OS 8均通过正常关机，HFS恢复`0x0100`卸载标记。
+Mac OS 8从空闲回调直接调用LaunchApplication的测试方式曾使关机卡在内存
+管理器；诊断盘/RAM已保存，该自动启动入口已删除。重新启动、由Finder正常
+双击For You后关机通过。日志为`artifacts/desktop/verified/`下的
+`system7-birthday-shutdown.log`、`system8-fresh-shutdown.log`及
+`system8-finder-gift-shutdown.log`。桌面Start Here已在SimpleText中打开核对。
 目前尚未连接实板；屏幕、USB唤醒、ADC及深睡电流不属于电脑模拟验证范围。
 
 ## 0.3.0 生日礼物彩蛋（历史记录）

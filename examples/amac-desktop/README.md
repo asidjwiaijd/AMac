@@ -51,9 +51,9 @@ Windows中启动`scripts/start_amac_desktop.ps1`，或直接双击上述cmd。
 `127.0.0.1:5903`与`127.0.0.1:6083`。日志在`artifacts/desktop/browser/`。
 页面地址为`http://127.0.0.1:6083/vnc.html?autoconnect=1&resize=scale&show_dot=0`。
 
-开发验证可向`browser/launch.request`写入单行数字1到4（LF结尾），分别请求
-Process Manager启动磁盘上的礼物、设置、终端、关于应用。日志同时记录
-LaunchApplication结果与应用实际加载的bDAY资源。这条路径只存在于电脑适配层。
+应用通过Finder桌面或苹果菜单打开，日志记录实际加载的bDAY页面资源。
+不要从模拟器的空闲回调直接调用Process Manager启动应用；该测试方式曾导致
+Mac OS 8关机收尾失败，已移除。正常Finder路径已通过启动和关机检查。
 
 ## 原始镜像停在寻盘画面
 

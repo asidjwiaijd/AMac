@@ -13,3 +13,4 @@ scripts/build_amac_desktop.sh text eol=lf
 scripts/install_birthday_desktop.sh text eol=lf
 scripts/prepare_amac_browser.sh text eol=lf
 scripts/run_amac_browser.sh text eol=lf
+test/aot_host/*.sh text eol=lf

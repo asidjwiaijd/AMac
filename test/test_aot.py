@@ -50,7 +50,7 @@ class AotTranslationTests(unittest.TestCase):
         self.assertIn('"rom_translated_share": 1.0', report)
         self.assertIn('"ram_translated_share": 1.0', report)
         subprocess.run(["bash", str(ROOT / "test/aot_host/build.sh"), str(self.work / "build"),
-                        str(self.work / "aot_rom_generated.cpp")], check=True, capture_output=True)
+                        str(self.work / "aot_rom_generated.cpp")], check=True)
         result = subprocess.run([str(self.work / "build/aot_diff"), str(self.work / "test.rom"), "--trials", "6"],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-4000:])
