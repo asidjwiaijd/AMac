@@ -1,27 +1,67 @@
 # aMac 验证记录
 
-## 0.4.0 桌面与系统入口（构建验证中）
+## 0.4.0 桌面与系统入口（当前版本）
 
 2026-11-09，版本`5.4-beta.1+amac.0.4.0`。生日礼物改用桌面For You图标，
 增加控制面板Birthday Settings、苹果菜单Pocket Terminal和About This Gift。
 四个原生68K启动器及Start Here说明已加入本地两份HFS磁盘；原盘备份位于
 `artifacts/desktop/backup/before-birthday-icons/`。固件与电脑端共用彩蛋逻辑和绘图。
 
-27项回归通过（73.228秒）：11项aMac、8项打包/DSI、4项时钟/电源、1项
-共享输入并发，以及3项原生MacBinary/SDL桌面检查。C++检查开启ASan/UBSan，
-包括四个资源入口、设置/终端/关于探索路径、命令编辑、输入交接、绘图及休眠。
-日志为`artifacts/build/amac-0.4-final-host-tests.log`。
+最终从干净源码提交`2ce37064e82e0314dcf4c38239841c6d55646e5e`构建，
+两份JSON均为`source_dirty=false`。本次验证提交只更新文档，版本标签为
+`amac-v0.4.0-desktop-gifts`；此前0.3.0两份镜像及JSON已归档至
+`release/archive/amac-v0.3.0-birthday/`，复制后逐项核对SHA-256。
+
+| 环境 | 构建结果 | SDK最低芯片revision | 完整镜像字节数 |
+| --- | --- | --- | --- |
+| `amac_p4_rev3` | SUCCESS，49.671秒 | 3.1 | 1939968 |
+| `amac_p4_es` | SUCCESS，49.819秒 | 0.1 | 1937200 |
+
+```text
+aMac-P4C5-HD20034-Rev3.bin
+7a813cb00c94dad742f74cbba813c80b9871dac914505585e7e236a9325e498a
+
+aMac-P4C5-HD20034-ES.bin
+a9f33f3f0faf55af368ef22962b4014b96409af8f2853f18ed502ac7961a7d88
+```
+
+两份产物独立核对了合并偏移、bootloader/partition/application完整内容、
+各组件与整包SHA-256、P4芯片ID、SDK最低revision、固件版本、源码提交与
+C5标识，并检查链接map未混入SDK的C6 transport。P4预编译镜像头的
+minimum-revision字段并不可靠，最低芯片要求取自实际所用SDK的sdkconfig，
+与既有构建守卫保持一致。上游/SDK既有编译警告仍存在，构建均成功。
+
+完整测试发现并执行82项，152.316秒，全部通过，未跳过用例。
+包括11项aMac、原生MacBinary/SDL桌面、打包/DSI、RTC/电池、输入并发、
+旧板型显示/启动界面、68K标志与AOT差分、控制协议及工具回归。
+支持的显示/输入和aMac C++主机检查开启ASan/UBSan；CPU标志检查启用UBSan。
+新增覆盖四个资源入口、设置/终端/关于探索路径、命令编辑、输入交接与透明合成。
+日志为`artifacts/build/amac-0.4-complete-tests.log`，最终构建日志为
+`amac-p4-rev3-desktop-gifts-final.log`和`amac-p4-es-desktop-gifts-final.log`，
+独立产物核对见`amac-0.4-release-verification-final.log`。
 
 实际System 7中已验证设置回忆、终端help/ls/线索/wish/1984、关于页烟花及返回。
-扩展的55项既有回归中53项通过，AOT两项在修复WSL脚本换行及Linux loff_t
-类型冲突后通过（26.700秒）；总计82项。最终完整重跑及构建结果随后补充。
+曾发现的WSL脚本换行和Linux loff_t类型冲突已修复，最终完整重跑包含这两项AOT
+差分检查，无需跳过。运行中磁盘安装被会话锁拒绝，正常关机后重复安装两盘均
+显示五个文件Already current；再次启动复用同一模拟器PID。
 
 System 7及Mac OS 8均通过正常关机，HFS恢复`0x0100`卸载标记。
 Mac OS 8从空闲回调直接调用LaunchApplication的测试方式曾使关机卡在内存
 管理器；诊断盘/RAM已保存，该自动启动入口已删除。重新启动、由Finder正常
-双击For You后关机通过。日志为`artifacts/desktop/verified/`下的
-`system7-birthday-shutdown.log`、`system8-fresh-shutdown.log`及
-`system8-finder-gift-shutdown.log`。桌面Start Here已在SimpleText中打开核对。
+双击For You后关机通过。最终桌面适配层中，Mac OS 8的苹果菜单终端、关于礼物，
+以及Control Panels子菜单中的Birthday Settings均经正常菜单打开，再次关机通过。
+日志为`artifacts/desktop/verified/`下的`system7-birthday-shutdown.log`、
+`system8-fresh-shutdown.log`、`system8-finder-gift-shutdown.log`及
+`system8-menu-gifts-shutdown.log`。桌面Start Here已在SimpleText中打开核对。
+
+System 7本地测试盘的桌面图标布局曾出现异常，已重新导入同一For You应用
+恢复显示；随后从桌面正常打开、关机、重启，复核图标仍可见。
+最终Finder路径日志为`system7-finder-gift-reboot.log`，与前述仅验证资源加载的
+自动启动记录区分。所有磁盘操作都在会话锁内、模拟器正常退出后完成。
+
+桌面版同一固件状态机/绘图加SDL2适配，在真正的System 7与Mac OS 8中运行，
+未模拟ESP32电源外设。最终桌面程序SHA-256为
+`99c108f348911345d6a873c46ddc9fb96a12c878fd95729d38c8c30c26ac746b`。
 目前尚未连接实板；屏幕、USB唤醒、ADC及深睡电流不属于电脑模拟验证范围。
 
 ## 0.3.0 生日礼物彩蛋（历史记录）

@@ -13,7 +13,7 @@ aMac固件或生日版电脑模拟器识别带版本的资源标记并显示相�
 | Start Here | `:Desktop Folder:Start Here` | SimpleText说明文档 |
 
 `python3 guest/birthday/package.py`确定性生成`dist/*.bin` MacBinary II文件，
-包含数据叉、资源叉、文件类型、creator、Finder位置和单色自定义图标。
+包含数据叉、资源叉、文件类型、creator和单色自定义图标；图标位置由Finder安排。
 MacBinary不能作为普通文件直接复制到HFS卷，需使用`hcopy -m`解包。
 
 在WSL仓库根目录运行`bash scripts/install_birthday_desktop.sh`，为本地

@@ -220,6 +220,15 @@ aMac 检查包含附件41条DCS命令的逐字节比对、复位/背光/失败�
 `artifacts/amac-ui/`。本机原生检查使用 G++；需要 ASan 时在支持的环境设置
 `CXX=clang++` 和 `AMAC_SANITIZERS=address,undefined`。
 
+本版完整82项回归在WSL Ubuntu运行：
+
+```powershell
+wsl -d Ubuntu -- env CXX=clang++ AMAC_SANITIZERS=address,undefined python3 -m unittest discover -s test -v
+```
+
+需在仓库根目录运行；最终构建来源、哈希与桌面操作结果见
+[验证记录](AMAC_VALIDATION.md)。
+
 后续同步先 `git fetch upstream`，在移植分支合并/挑选需要的上游提交，再重复
 以上检查及两种芯片配置构建。不要用 `master` 覆盖移植分支。构建时的提交及
 dirty 状态保存在镜像旁 JSON，实机验证结果可继续追加到 [AMAC_VALIDATION.md](AMAC_VALIDATION.md)。
