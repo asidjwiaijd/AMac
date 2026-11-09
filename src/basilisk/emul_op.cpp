@@ -43,6 +43,8 @@
 #include "extfs.h"
 #include "emul_op.h"
 #include "power_manager.h"
+#include "birthday_guest.h"
+#include "birthday_gift_runtime.h"
 #include "low_battery.h"
 
 #ifdef ENABLE_MON
@@ -665,6 +667,7 @@ void EmulOp(uint16 opcode, M68kRegisters *r)
 			uint32 size = ReadMacInt32(adr - 8) & 0xffffff;
 			CheckLoad(type, id, p, size);
 			PowerManagerCheckLoad(type, id, p, size);
+			if (const uint8_t entry=BirthdayGuestEntry(type,id,p,size)) BirthdayGift_Launch(entry);
 			break;
 		}
 

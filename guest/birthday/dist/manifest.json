@@ -1,0 +1,22 @@
+[
+  {
+    "name": "For You",
+    "file": "For You.bin",
+    "entry": 1
+  },
+  {
+    "name": "Birthday Settings",
+    "file": "Birthday Settings.bin",
+    "entry": 2
+  },
+  {
+    "name": "Pocket Terminal",
+    "file": "Pocket Terminal.bin",
+    "entry": 3
+  },
+  {
+    "name": "About This Gift",
+    "file": "About This Gift.bin",
+    "entry": 4
+  }
+]

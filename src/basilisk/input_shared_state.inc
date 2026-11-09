@@ -38,6 +38,14 @@ static void releaseGuestInputForGift()
         guest_mouse_down[button] = false;
     }
 }
+void BirthdayGift_Launch(uint8_t entry)
+{
+    if (entry<1 || entry>4) return;
+    InputStateGuard guard;
+    releaseGuestInputForGift();
+    BirthdayGift_OpenPage(entry);
+    PowerManagerNoteActivity();
+}
 #endif
 
 static void routeMouseMove(int x, int y, bool relative)

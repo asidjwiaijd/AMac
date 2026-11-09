@@ -490,7 +490,7 @@ void PaintSplash(void)
 #endif
 #if defined(BOARD_AMAC_P4)
     TextIn({20, Height() - 44, Width() - 40, 20}, "A little gift is waiting inside.", kGray63, kCenter);
-    TextIn({20, Height() - 24, Width() - 40, 20}, "Ctrl + Alt + G", kGray63, kCenter);
+    TextIn({20, Height() - 24, Width() - 40, 20}, "Open For You on the desktop.", kGray63, kCenter);
 #endif
 }
 

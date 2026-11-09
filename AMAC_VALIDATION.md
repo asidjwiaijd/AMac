@@ -1,6 +1,22 @@
 # aMac 验证记录
 
-## 0.3.0 生日礼物彩蛋（当前版本）
+## 0.4.0 桌面与系统入口（构建验证中）
+
+2026-11-09，版本`5.4-beta.1+amac.0.4.0`。生日礼物改用桌面For You图标，
+增加控制面板Birthday Settings、苹果菜单Pocket Terminal和About This Gift。
+四个原生68K启动器及Start Here说明已加入本地两份HFS磁盘；原盘备份位于
+`artifacts/desktop/backup/before-birthday-icons/`。固件与电脑端共用彩蛋逻辑和绘图。
+
+27项回归通过（73.228秒）：11项aMac、8项打包/DSI、4项时钟/电源、1项
+共享输入并发，以及3项原生MacBinary/SDL桌面检查。C++检查开启ASan/UBSan，
+包括四个资源入口、设置/终端/关于探索路径、命令编辑、输入交接、绘图及休眠。
+日志为`artifacts/build/amac-0.4-final-host-tests.log`。
+
+实际System 7中已验证设置回忆、终端help/ls/线索/wish/1984、关于页烟花及返回。
+两种系统的完整启动、原生入口及正常卸载结果和最终构建信息将在构建完成后记录。
+目前尚未连接实板；屏幕、USB唤醒、ADC及深睡电流不属于电脑模拟验证范围。
+
+## 0.3.0 生日礼物彩蛋（历史记录）
 
 日期为2026-11-09（Asia/Taipei），固件版本`5.4-beta.1+amac.0.3.0`。
 两份镜像来自干净的源码提交`a0075946a3c3b603eb6f635959f52362288b7dc9`，

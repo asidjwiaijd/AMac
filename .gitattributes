@@ -6,3 +6,10 @@ hardware/netlists/*.tel -whitespace
 hardware/reference/tspi-rk3566-dsi-v10.dtsi -text -whitespace
 # The Unix Basilisk II preferences reader strips LF only.
 examples/amac-desktop/basilisk_ii_prefs text eol=lf
+examples/amac-desktop/birthday_bridge.* text eol=lf
+examples/amac-desktop/birthday_desktop_control.cpp text eol=lf
+guest/birthday/dist/*.bin -text
+scripts/build_amac_desktop.sh text eol=lf
+scripts/install_birthday_desktop.sh text eol=lf
+scripts/prepare_amac_browser.sh text eol=lf
+scripts/run_amac_browser.sh text eol=lf

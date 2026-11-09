@@ -34,6 +34,12 @@ void BirthdayGift_Close()
     gift.close();
     portEXIT_CRITICAL(&gift_lock);
 }
+void BirthdayGift_OpenPage(uint8_t entry)
+{
+    portENTER_CRITICAL(&gift_lock);
+    gift.launch(entry,millis());
+    portEXIT_CRITICAL(&gift_lock);
+}
 bool BirthdayGift_Open()
 {
     portENTER_CRITICAL(&gift_lock);
