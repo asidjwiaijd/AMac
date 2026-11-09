@@ -2,6 +2,7 @@
 rom Q650.ROM
 disk Macintosh7.dsk
 screen win/480/360
+mag_rate 2
 ramsize 16777216
 modelid 14
 cpu 4

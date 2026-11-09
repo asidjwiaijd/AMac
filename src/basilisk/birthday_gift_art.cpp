@@ -96,7 +96,10 @@ void chrome(Painter &p, const Frame &f)
     p.fill({kWindow.x+4,kWindow.y+4,kWindow.w,kWindow.h},ink);
     p.fill(kWindow,paper); p.box(kWindow,ink);
     p.fill({25,29,430,26},lavender); p.fill({25,54,430,1},ink);
-    p.text(39,46,"aMac  //  a little gift",ink);
+    const char *title=f.scene==Scene::Settings ? "Birthday Settings" :
+        f.scene==Scene::Terminal ? "Pocket Terminal" :
+        f.scene==Scene::About ? "About This Gift" : "aMac  //  a little gift";
+    p.text(39,46,title,ink);
     p.star(413,42,5,(f.elapsed/500)%2 ? paper : yellow);
     p.box(kClose,ink);
     for (int i=3;i<11;++i) { p.dot(kClose.x+i,kClose.y+i,ink); p.dot(kClose.x+13-i,kClose.y+i,ink); }
@@ -106,7 +109,8 @@ void chrome(Painter &p, const Frame &f)
         p.text(85,296,"Model 1984",gray);
         p.text(85,313,"More than meets the eye.",gray);
     } else {
-        p.fill(kBack,lavender); p.box(kBack,ink); p.center(307,"Back to cake",ink);
+        p.fill(kBack,lavender); p.box(kBack,ink);
+        p.center(307,f.scene>=Scene::Settings ? "Done" : "Back",ink);
         p.text(42,310,"Esc: back",gray);
     }
     for (int i=0;i<5;++i) {
@@ -147,7 +151,7 @@ void cake(Painter &p, const Frame &f)
     }
     p.heart(229,191,3,paper);
     p.center(244,f.wished ? "Wish saved. Now go make it happen." : "One more trip around the sun.",ink);
-    p.center(263,f.wished ? "There are still little secrets to discover." : "Click the cake or press Space. Make a wish.",gray);
+    p.center(263,f.wished ? "Next: Apple menu > Control Panels." : "Click the cake or press Space. Make a wish.",gray);
 }
 
 void happyMac(Painter &p, const Frame &f)
@@ -208,6 +212,48 @@ void letter(Painter &p)
         p.text(65,140+int(i)*18,BirthdayConfig::kLetter[i],ink);
     p.center(261,BirthdayConfig::kSignature,pink);
 }
+
+void settings(Painter &p)
+{
+    p.center(87,"A few personal settings",ink,2);
+    p.text(75,119,"Birthday mode:  On, of course.",ink);
+    p.fill(kMemory,lavender); p.box(kMemory,ink);
+    p.text(81,163,"Memory:  All the good times",ink);
+    p.center(194,"Try remembering five good moments.",gray);
+    p.fill(kTerminalButton,paper); p.box(kTerminalButton,ink);
+    p.center(233,"Open Pocket Terminal",ink);
+    p.center(263,"Also hiding in the Apple menu: About This Gift.",gray);
+}
+
+void terminal(Painter &p, const Frame &f)
+{
+    p.fill({25,55,430,219},night);
+    p.center(84,"Pocket Terminal",paper,2);
+    p.text(43,106,"Type help. Follow your curiosity.",lavender);
+    if (*f.last_command) { p.text(43,128,">",teal); p.text(58,128,f.last_command,paper); }
+    static const char *const outputs[][4]={
+        {"help  ls  cat <file>  wish  clear  exit", "Tip: ls shows the things you can read.",nullptr,nullptr},
+        {"clue.txt    birthday.log", "Try: cat clue.txt",nullptr,nullptr},
+        {"Some wishes are too big for this screen.", "Try wish, and see where it takes you.",nullptr,nullptr},
+        {"The first Macintosh was born in 1984.", "Some dates also make good passwords.", "Try that year at the prompt.",nullptr},
+        {nullptr,nullptr,nullptr,nullptr},
+        {"Unknown command. Try help or ls.",nullptr,nullptr,nullptr}
+    };
+    const unsigned out=std::min(unsigned(f.terminal_output),5u);
+    for (int i=0;i<4;++i) if (outputs[out][i]) p.text(43,153+i*19,outputs[out][i],paper);
+    p.text(43,252,">",teal); p.text(58,252,f.command,paper);
+    if ((f.elapsed/500)%2==0) p.fill({58+p.width(f.command),254,7,2},teal);
+}
+
+void about(Painter &p)
+{
+    p.center(84,"About This Gift",ink,2);
+    p.mac(207,102,3);
+    p.center(208,"Made for one very special player.",ink);
+    p.center(227,"Hint: old gamepad cheats still work.",gray);
+    p.center(245,"Up twice. Down twice. Left, Right, twice.",gray);
+    p.center(263,"Finish with B, A.",gray);
+}
 } // namespace
 
 bool covers(const Frame &f, int x, int y, int w, int h)
@@ -226,7 +272,7 @@ void composite(const Frame &f, int x, int y, int w, int h, uint16_t *pixels)
         p.fill(kToast,paper); p.box(kToast,ink);
         p.heart(82,316,2,pink);
         p.text(108,320,"There is a little gift for you.",ink);
-        p.text(108,339,"Ctrl + Alt + G",gray);
+        p.text(108,339,"Open For You on the desktop.",gray);
         return;
     }
     chrome(p,f);
@@ -236,6 +282,9 @@ void composite(const Frame &f, int x, int y, int w, int h, uint16_t *pixels)
         case Scene::Stars: stars(p,f); break;
         case Scene::Arcade: arcade(p,f); break;
         case Scene::Letter: letter(p); break;
+        case Scene::Settings: settings(p); break;
+        case Scene::Terminal: terminal(p,f); break;
+        case Scene::About: about(p); break;
         default: break;
     }
     if (f.pointer) p.cursor(std::clamp(int(f.mouse_x),26,441),std::clamp(int(f.mouse_y),30,313));

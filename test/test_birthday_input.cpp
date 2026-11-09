@@ -46,6 +46,10 @@ int main()
     InputAutomationMouseButton(0,false); assert(!BirthdayGift_Open());
     InputAutomationMouseButton(0,true); assert(buttons[0]);
     InputAutomationReleaseAll(); assert(!buttons[0]);
+    InputKeyDown(0x38); routeMouseButton(0,true);
+    BirthdayGift_Launch(2); assert(BirthdayGift_Open() && !keys[0x38] && !buttons[0]);
+    InputKeyUp(0x38); routeMouseButton(0,false); tap(0x35);
+    assert(!BirthdayGift_Open());
     for (int count:adb_key_claims) assert(count==0);
     puts("PASS: production input broker captures gifts, releases held guest input and resumes without stuck keys/buttons");
 }

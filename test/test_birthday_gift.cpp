@@ -1,5 +1,6 @@
 #include "birthday_gift.h"
 #include "birthday_config.h"
+#include "birthday_guest.h"
 #include "charcoal_font_data.h"
 #include <algorithm>
 #include <cassert>
@@ -122,5 +123,47 @@ int main()
     gift.move(413,42,false,now); gift.button(0,true,now); gift.close();
     assert(gift.button(0,false,now+1));
     assert(!gift.key(0x80,true,now)); assert(!gift.button(3,true,now));
+    // Native Finder entries distribute the clues across real system folders.
+    gift.reset(now);
+    gift.launch(2,now); assert(gift.frame(now).scene==Scene::Settings);
+    snapshot("06-birthday-settings",gift.frame(now));
+    for (int i=0;i<5;++i) click(gift,kMemory,now+=100);
+    assert(gift.frame(now).scene==Scene::Mac && gift.frame(now).back==Scene::Settings);
+    tap(gift,0x35,now+=10); assert(gift.frame(now).scene==Scene::Settings);
+    click(gift,kTerminalButton,now+=10); assert(gift.frame(now).scene==Scene::Terminal);
+    auto command=[&](const char *text) {
+        static const char chars[]="abcdefghijklmnopqrstuvwxyz1234567890 .";
+        static const uint8_t codes[]={0x00,0x0b,0x08,0x02,0x0e,0x03,0x05,0x04,0x22,0x26,0x28,0x25,0x2e,
+            0x2d,0x1f,0x23,0x0c,0x0f,0x01,0x11,0x20,0x09,0x0d,0x07,0x10,0x06,
+            0x12,0x13,0x14,0x15,0x17,0x16,0x1a,0x1c,0x19,0x1d,0x31,0x2f};
+        for (;*text;++text) { auto p=std::strchr(chars,*text); assert(p); tap(gift,codes[p-chars],now+=5); }
+        tap(gift,0x24,now+=5);
+    };
+    command("help"); assert(gift.frame(now).terminal_output==0);
+    snapshot("07-pocket-terminal",gift.frame(now));
+    command("ls"); assert(gift.frame(now).terminal_output==1);
+    command("cat clue.txt"); assert(gift.frame(now).terminal_output==2);
+    command("wish"); assert(gift.frame(now).scene==Scene::Stars && gift.frame(now).back==Scene::Terminal);
+    tap(gift,0x35,now+=5); command("cat birthday.log"); assert(gift.frame(now).terminal_output==3);
+    command("1984"); assert(gift.frame(now).scene==Scene::Letter);
+    tap(gift,0x35,now+=5); assert(gift.frame(now).scene==Scene::Terminal);
+    command("unknown"); assert(gift.frame(now).terminal_output==5);
+    command("clear"); assert(gift.frame(now).terminal_output==4);
+    command("exit"); assert(!gift.open());
+    gift.launch(4,now); assert(gift.frame(now).scene==Scene::About);
+    snapshot("08-about-this-gift",gift.frame(now));
+    for (auto code:combo) tap(gift,code,now+=100);
+    assert(gift.frame(now).scene==Scene::Arcade && gift.frame(now).back==Scene::About);
+    const uint8_t launcher[]={0,0,0,1,0xa9,0xf4,'a','M','a','c','B','d','a','y',1,3};
+    assert(BirthdayGuestEntry(0x434f4445,1,launcher,sizeof(launcher))==3);
+    assert(!BirthdayGuestEntry(0x434f4445,0,launcher,sizeof(launcher)));
+    assert(!BirthdayGuestEntry(0x434f4445,1,launcher,sizeof(launcher)-1));
+    assert(!BirthdayGuestEntry(0x44415441,1,launcher,sizeof(launcher)));
+    assert(!BirthdayGuestEntry(0x434f4445,1,nullptr,sizeof(launcher)));
+    const uint8_t marker[]={'a','M','a','c','B','d','a','y',1,4,0,0};
+    assert(BirthdayGuestEntry(0x62444159,128,marker,sizeof(marker))==4);
+    assert(!BirthdayGuestEntry(0x62444159,127,marker,sizeof(marker)));
+    assert(!BirthdayGuestEntry(0x62444159,128,marker,9));
+    puts("PASS: native desktop/settings/terminal/about entry chain and strict guest resource recognition");
     puts("PASS: five secrets, sequence timeouts, mouse holds, wraparound, unlocks, clipped tiles and art previews");
 }
