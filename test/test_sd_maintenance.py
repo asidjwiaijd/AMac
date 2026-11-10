@@ -62,7 +62,8 @@ class SdMaintenanceTests(unittest.TestCase):
     def test_binary_roundtrip_and_previous_file(self):
         original=b'previous configuration'
         (self.root/'settings.txt').write_bytes(original)
-        source=self.root/'source.bin';source.write_bytes(bytes(range(256))*31+b'\x00\xffend')
+        # Cross several verification windows, with a partial final sector.
+        source=self.root/'source.bin';source.write_bytes(bytes(range(256))*769+b'\x00\xffend')
         result=self.control.sd_put(source,'settings.txt')
         self.assertEqual(result['crc32'],zlib.crc32(source.read_bytes()))
         self.assertEqual((self.root/'settings.txt.previous').read_bytes(),original)

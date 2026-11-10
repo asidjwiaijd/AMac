@@ -1,9 +1,9 @@
 # aMac P4C5 移植说明
 
-2026-11-10，版本 `5.4-beta.1+amac.0.4.0`。这是使用用户补充的
+2026-11-11，版本 `5.4-beta.1+amac.0.5.0`。这是使用用户补充的
 `kernel修改说明.zip` 中屏幕初始化表和时序的移植版。已通过内部 USB Serial/JTAG
-烧录 P4 v3.2 并校验，实板已识别准备好的 SD 卡；启动时保存配置失败，
-Mac 启动与屏幕仍待验证。
+烧录 P4 v3.2 并校验，实板 SD 读写、配置保存、鼠标识别和 System 7 启动通过。
+日常固件和 SD 文件可通过 USB2 更新，无需取卡，见[不拆机更新说明](AMAC_UPDATES.md)。
 完整依据和格式适配见 [屏幕驱动参考](hardware/reference/HD20034_KERNEL_REFERENCE.md)。
 
 ## 代码与硬件基线
@@ -30,11 +30,11 @@ Mac 启动与屏幕仍待验证。
 | 显示管线 | 新增原生横屏映射，1:1 显示；0/180 度旋转、1/2/4/8 bit 索引色、截图/像素校验共用同一坐标 |
 | 启动菜单 | 480 像素宽时把 Memory/Options 改为上下排列，媒体列表保留滚动 |
 | 背光 | GPIO13 开关，默认高电平开启；亮度/LED 电流由前板 R3 模拟电路调整，软件百分比只有开/关效果 |
-| microSD | SDMMC slot 0，4-bit，20 MHz，失败后尝试 400 kHz；卡固定3V3供电，IO LDO4 固定3.3V，不自动格式化/切换1.8V |
+| microSD | SDMMC slot 0，保守的1-bit/4 MHz，挂载失败后尝试400 kHz；卡固定3V3供电，IO LDO4固定3.3V，不自动格式化/切换1.8V |
 | SD 检测 | GPIO45 只作输入；移除 EV board 把它当电源输出的定义 |
 | Wi-Fi | 模组内部 SDIO slot 1；C5 reset54，CLK18/CMD19/D0..3=14..17；同版本源码重编通信入口，校验 C5 |
-| USB 键鼠 | 复用上游 USB Host/HID/hub 路径，经底板 U1 hub；SDK 已启用多层 hub |
-| 串口 | UART0 TX37/RX38，经调试切换和 USB1 串口桥，115200；USB2 不作为默认控制台 |
+| USB 键鼠 | 经底板U1 hub，以FS/LS兼容模式避开TT限制；鼠标可操作启动设置，进入Mac后复用同一Host |
+| 串口 | UART0 TX37/RX38，经USB1串口桥，115200；USB2内部Serial/JTAG同时提供控制和文件维护接口 |
 | 电池 | GPIO22 原始电压用于两级休眠保护；GPIO21 读取 CHRG；向 Mac 报告的百分比估算仍默认关闭 |
 | 红外 | GPIO12 仅设为输入；未指定遥控协议/键码，不把 IR_OUT 当 PWM 输出 |
 | 音频/触摸 | 这两份网表未给出对应硬件，使用空接口，隐藏 Sound 选项 |
@@ -105,6 +105,11 @@ Mac ROM/磁盘镜像不进 Git。
 
 ## 上板与 SD 卡
 
+日常更新优先双击 `scripts/update_amac.cmd`，文件维护使用
+`scripts/maintain_amac.cmd`。Mac运行时先正常关机，再操作；工具会拒绝在运行中
+更新或修改SD文件。备份、校验、旧文件保留和回退方式见
+[不拆机更新说明](AMAC_UPDATES.md)。以下保留首次全量烧录的硬件基线。
+
 2026-11-10 已用 esptool 5.3.1 经内部 USB Serial/JTAG（本机 COM12）完成
 Rev3 镜像烧录，写入校验及独立 ROM MD5 均通过。实际芯片为 P4 v3.2，
 符合 Rev3 镜像最低要求；原 Flash 前 2 MiB 已备份。固定开发依赖中的旧
@@ -131,9 +136,10 @@ SD 卡存放 Mac ROM、虚拟硬盘及启动配置，Mac 保存的文档和系�
 | `Macintosh.dsk` | 已安装生日图标和彩蛋入口的 System 7 虚拟硬盘 |
 | `basilisk_settings.txt` | 16 MB Mac RAM、0 度方向、直接启动，声音/自动 Wi-Fi 关闭 |
 
-文件系统检查通过，读卡器已安全弹出。设备已成功识别 3840 MB 卡，找到 ROM
-和系统盘并读入配置；当前恢复设置页启动返回 `ERR BOOT save_failed`，
-板上写卡与 Mac 启动仍待排查。以后插拔卡应先正常关闭 Mac，再断开设备电源；
+文件系统检查通过，设备已成功识别3840 MB卡，找到ROM和系统盘并读入配置。
+0.5.0调整为1-bit/4 MHz后，实板配置保存、USB文件上传/下载、原文件备份、
+重复启动System 7通过。以前的`ERR BOOT save_failed`已消除。
+以后通常无需插拔卡；确需取卡时先正常关闭Mac，再断开设备电源。
 用电脑修改磁盘映像时也应先退出电脑模拟器。
 
 准备其他 FAT32 microSD 时，根目录放入自己的 `Q650.ROM` 和 Mac 磁盘镜像。
@@ -141,8 +147,9 @@ SD 卡存放 Mac ROM、虚拟硬盘及启动配置，Mac 保存的文档和系�
 到卡根目录，把 `disk` 改成实际文件名。例子关闭声音/Wi-Fi，16 MB 客户机 RAM、
 0 度方向，直接启动；配置文件中的路径是 SD 根目录相对路径。
 
-HD20034 没有触摸输入。现有 USB 键鼠驱动在进入模拟器后初始化，启动设置阶段
-可以编辑 SD 配置文件或使用串口控制工具。需要停在设置界面时，在卡根目录创建
+HD20034没有触摸输入。USB鼠标已在启动设置阶段初始化，可直接点击按钮；
+USB键盘在Mac中使用。启动设置也可使用USB1/USB2控制工具配置。
+需要固定停在设置界面时，可通过文件维护在卡根目录创建
 空文件 `basilisk_recovery.txt`，配置完成后删除它。
 
 ```powershell
@@ -245,7 +252,7 @@ aMac 检查包含附件41条DCS命令的逐字节比对、复位/背光/失败�
 `artifacts/amac-ui/`。本机原生检查使用 G++；需要 ASan 时在支持的环境设置
 `CXX=clang++` 和 `AMAC_SANITIZERS=address,undefined`。
 
-本版完整82项回归在WSL Ubuntu运行：
+本版完整88项回归在WSL Ubuntu运行：
 
 ```powershell
 wsl -d Ubuntu -- env CXX=clang++ AMAC_SANITIZERS=address,undefined python3 -m unittest discover -s test -v
