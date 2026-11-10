@@ -71,14 +71,30 @@ def update(image,port=None,recovery=False):
             raise ValueError('生产芯片不能使用早期样片固件。')
         if esp.get_secure_boot_enabled() or esp.get_flash_encryption_enabled():
             raise ValueError('此更新流程不适用于已启用安全启动或加密的设备。')
-        esp=cmds.run_stub(esp);cmds.attach_flash(esp)
-        partition=cmds.read_flash(esp,0x8000,0x1000,no_progress=True)
-        if partition!=merged[0x8000:0x9000]:
+        cmds.attach_flash(esp)
+        if esp.flash_md5sum(0x8000,0x1000)!=hashlib.md5(merged[0x8000:0x9000]).hexdigest():
             raise ValueError('分区布局不同，不能使用保留数据的应用更新。')
         size=(len(application)+4095)//4096*4096
         original=bytearray()
         print('正在备份现有固件…',flush=True)
-        for offset in range(0,size,0x1000):
+        # Prefer a byte-identical published image verified against the ROM's
+        # own flash digest. This avoids P4 v3.2's unreliable streamed readback
+        # and also makes the rollback version reproducible.
+        candidates=list((ROOT/'release').glob('*.bin'))+list((ROOT/'release/archive').rglob('*.bin'))
+        digests={}
+        for candidate in sorted(candidates,key=lambda p:p.stat().st_mtime,reverse=True):
+            try: old_meta,_,old_app=load_application(candidate)
+            except (OSError,ValueError,KeyError): continue
+            if old_meta.get('chip_variant')!=metadata['chip_variant']: continue
+            if len(old_app) not in digests: digests[len(old_app)]=esp.flash_md5sum(0x10000,len(old_app))
+            if digests[len(old_app)]==hashlib.md5(old_app).hexdigest():
+                original=bytearray(old_app)
+                record['backup_method']='Published application independently matched to current flash by ROM MD5'
+                record['previous_release']=str(candidate.relative_to(ROOT))
+                break
+        if not original:
+            esp=cmds.run_stub(esp);cmds.attach_flash(esp)
+        for offset in range(0,size if not original else 0,0x1000):
             for attempt in range(3):
                 try:
                     # P4 v3.2/native USB can lose a long streaming read. Keep
@@ -94,11 +110,13 @@ def update(image,port=None,recovery=False):
                     esp=cmds.run_stub(esp);cmds.attach_flash(esp)
             original.extend(data)
             if offset%0x40000==0: print(f'备份 {len(original)*100//size}%',flush=True)
+        record.setdefault('backup_method','Paged flash read, followed by target digest verification')
         backup=folder/'previous-application.bin';backup.write_bytes(original)
         record['backup']=str(backup.relative_to(ROOT))
         record['backup_sha256']=hashlib.sha256(original).hexdigest();save()
         # Recheck the backup using the target's own flash digest before writing.
         cmds.verify_flash(esp,[(0x10000,bytes(original))])
+        if not esp.IS_STUB: esp=cmds.run_stub(esp)
         print('备份通过校验，正在写入新固件…',flush=True)
         writing=True
         cmds.write_flash(esp,[(0x10000,application)],flash_mode='keep',flash_freq='keep',
