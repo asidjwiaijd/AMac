@@ -3,6 +3,8 @@ from pathlib import Path
 import argparse
 from datetime import datetime
 import hashlib
+import contextlib
+import io
 import json
 import sys
 
@@ -57,6 +59,7 @@ def update(image,port=None,recovery=False):
     def save(): (folder/'result.json').write_text(json.dumps(record,indent=2)+'\n',encoding='utf-8')
     connection=serial.Serial(port=None,baudrate=115200,timeout=.5)
     connection.dtr=False;connection.rts=False;connection.port=port;connection.open()
+    writing=False
     try:
         esp=ESP32P4ROM(connection);esp.connect(mode='usb-reset',attempts=3)
         if not esp.uses_usb_jtag_serial(): raise ValueError('更新必须通过内部 USB2 Serial/JTAG。')
@@ -75,16 +78,29 @@ def update(image,port=None,recovery=False):
         size=(len(application)+4095)//4096*4096
         original=bytearray()
         print('正在备份现有固件…',flush=True)
-        for offset in range(0,size,0x40000):
-            data=cmds.read_flash(esp,0x10000+offset,min(0x40000,size-offset),no_progress=True)
-            if len(data)!=min(0x40000,size-offset): raise ValueError('备份读取不完整，停止更新。')
+        for offset in range(0,size,0x1000):
+            for attempt in range(3):
+                try:
+                    # P4 v3.2/native USB can lose a long streaming read. Keep
+                    # each independently checked read within one flash page.
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        data=cmds.read_flash(esp,0x10000+offset,min(0x1000,size-offset),no_progress=True)
+                    if len(data)!=min(0x1000,size-offset): raise ValueError('备份读取不完整。')
+                    break
+                except (esptool.FatalError,OSError):
+                    if attempt==2: raise
+                    esp=ESP32P4ROM(connection);esp.connect(mode='usb-reset',attempts=2)
+                    if record['mac']!=':'.join(f'{b:02x}' for b in esp.read_mac()): raise ValueError('设备身份改变。')
+                    esp=cmds.run_stub(esp);cmds.attach_flash(esp)
             original.extend(data)
+            if offset%0x40000==0: print(f'备份 {len(original)*100//size}%',flush=True)
         backup=folder/'previous-application.bin';backup.write_bytes(original)
         record['backup']=str(backup.relative_to(ROOT))
         record['backup_sha256']=hashlib.sha256(original).hexdigest();save()
         # Recheck the backup using the target's own flash digest before writing.
         cmds.verify_flash(esp,[(0x10000,bytes(original))])
         print('备份通过校验，正在写入新固件…',flush=True)
+        writing=True
         cmds.write_flash(esp,[(0x10000,application)],flash_mode='keep',flash_freq='keep',
                          flash_size='keep',compress=True,no_progress=True)
         # Verify independently through ROM, avoiding the streaming readback
@@ -99,7 +115,13 @@ def update(image,port=None,recovery=False):
         except (OSError,StopIteration): pass
         return folder
     except BaseException as error:
-        record['error']=str(error);save();raise
+        record['error']=str(error)
+        if not writing:
+            try:
+                esp=ESP32P4ROM(connection);esp.connect(mode='usb-reset',attempts=1)
+                esp.watchdog_reset()
+            except Exception as reset_error: record['reset_note']=str(reset_error)
+        save();raise
     finally: connection.close()
 
 
