@@ -33,11 +33,17 @@ GPIO/ADC 初始化告警仍需后续排查，屏幕、键鼠和电源硬件也�
 
 配置采用 16 MB Mac RAM、0 度方向、直接启动 `/Macintosh.dsk`，关闭声音和
 自动 Wi-Fi。只读 `chkdsk` 检查通过，剩余空间 2968354816 字节。
-读卡器已通过 Windows 安全弹出。21:31 设备重新连接后，串口仍报告
-`sdmmc_init_ocr` 的 `0x107` 超时；当次上电时卡是否已插回设备尚待用户确认。
+读卡器已通过 Windows 安全弹出。21:31 设备重新连接后仍报告 SD 识别超时，
+21:35 再次连接后已成功初始化 SD 卡（3840 MB），找到 `Q650.ROM` 和
+`Macintosh.dsk`，并读入 16 MB RAM、直接启动、关闭声音/自动 Wi-Fi 的配置。
 已核对当前固件的 slot 0、GPIO39..44、固定 3.3V 配置及网表中五路 10K
-上拉对应关系，未发现引脚定义差异。仍需确认插卡后重新上电的板上 SD 读取及
-Mac 启动，以上电脑复制检查不等同于板上 SDMMC 验证。
+上拉对应关系，未发现引脚定义差异。
+
+本次因 reset reason 7 停在恢复设置页，串口控制协议可用，`boot-status` 返回
+`preboot/settings`。执行 `boot-start` 返回 `ERR BOOT save_failed`，因此尚未
+开始 Mac 模拟器，板上写卡与完整 Mac 启动仍未通过。随后设备连接断开，
+继续采集写卡错误需重新连接供电及 USB1。日志中的 `DiskTools1.img: MISSING`
+是未放入可选工具软盘，当前启动介质为 `Macintosh.dsk`。
 
 本地证据（不纳入 Git，ROM 和客户机磁盘也不纳入 Git）：
 
