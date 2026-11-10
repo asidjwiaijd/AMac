@@ -33,7 +33,7 @@ def main():
                 status=client.boot_status()
                 if choice in ('1','2','3','4') and status['phase']=='emulator':
                     print('请先在 Mac 的 Special 菜单中正常关机，再选择“进入维护设置”。');continue
-                if choice=='4': print(client.boot_enter());continue
+                if choice=='4': client.boot_enter();print('已进入维护设置。');continue
                 if choice in ('1','2','3') and status['phase']!='preboot':
                     print('请先选择“进入维护设置”。');continue
                 if choice=='1':
@@ -47,13 +47,19 @@ def main():
                         if percent!=last[0] and percent%5==0:
                             print(f'传输 {percent}%（{done}/{total} 字节）',flush=True);last[0]=percent
                     print('使用临时文件和校验，原文件保留为 .previous；完整系统盘传输可能较久。')
-                    print(client.sd_put(source,name,progress))
+                    result=client.sd_put(source,name,progress)
+                    print(f"复制完成，已读回校验，共 {result['bytes']} 字节。")
                 elif choice=='3':
                     name=input('卡内文件名：').strip()
                     output=Path(input('电脑保存完整路径：').strip().strip('"'))
-                    print(client.sd_get(name,output))
-                elif choice=='5': print(client.boot_start())
-                elif choice=='6': print(client.request('INPUT','OK INPUT'))
+                    result=client.sd_get(name,output)
+                    print(f"备份完成，共 {result['bytes']} 字节，保存到 {output}。")
+                elif choice=='5': client.boot_start();print('Mac 已开始启动。')
+                elif choice=='6':
+                    fields=dict(word.split('=',1) for word in client.request('INPUT','OK INPUT').split()[3:])
+                    print('鼠标：'+('已连接' if fields.get('mouse')=='1' else '未检测到')+
+                          '；键盘：'+('已连接' if fields.get('keyboard')=='1' else '未检测到')+
+                          '；鼠标输入报告：'+fields.get('reports','0')+' 个。')
         except (OSError,ValueError,ControlError,subprocess.CalledProcessError) as error:
             print('操作未完成：',error)
 

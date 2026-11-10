@@ -1,5 +1,74 @@
 # aMac 验证记录
 
+## 0.5.0：USB 鼠标与不拆机更新（当前版本）
+
+2026-11-11，固件`5.4-beta.1+amac.0.5.0`。固件构建来自干净源码提交
+`f9b136f295cde6ba155ec296997e425e0fcb389b`，两份JSON均为
+`source_dirty=false`。后续PC更新工具的原生USB复位、自动归档及说明提交
+不改变这两份固件。标签`amac-v0.5.0-usb-maintenance`。
+
+| 环境 | 最终构建 | 最低芯片revision | 合并镜像字节数 |
+| --- | --- | --- | ---: |
+| `amac_p4_rev3` | SUCCESS，20.518秒 | 3.1 | 1952560 |
+| `amac_p4_es` | SUCCESS，20.429秒 | 0.1 | 1949792 |
+
+```text
+aMac-P4C5-HD20034-Rev3.bin
+8140780d9e7534885d1e38b153f15b3808c534efacc0286e29a41d5cb798b783
+
+aMac-P4C5-HD20034-ES.bin
+597674019613e810ef9a180e4efd8e193f921f3e2b8a8316b5f914b67e75399e
+```
+
+完整88项回归全部通过，123.078秒，支持的C++检查使用ASan/UBSan。
+新增生产文件后端与Python客户端的二进制往返、错误CRC/偏移、取消传输、
+磁盘读回损坏、替换日志恢复和路径限制检查；启动指针覆盖裁切、显示失败重试
+及移除后的底图恢复。固件更新检查拒绝损坏镜像、错误芯片与未提交构建。
+日志为`artifacts/build/amac-0.5-complete-tests-final.log`。
+另将传输往返用例扩展至196869字节，跨越多个64 KiB读回校验窗口；5项文件
+维护检查补跑通过，1.291秒，日志为`amac-0.5-large-file-transfer-tests.log`。
+
+实板为此前同一P4 v3.2。已用新增USB2更新工具只写应用区`0x10000`，
+保留SD、NVS、分区表与bootloader。更新前的程序先用ROM Flash摘要匹配已
+归档发布镜像，再保存可回退副本；写入校验及独立ROM MD5均通过。
+最终应用SHA-256为
+`d54dd51723940488302f7634602ce62f8cff00e265613db92b94b9e508deb2fb`。
+更新记录为`artifacts/updates/2026-11-11_025423_543734/result.json`。
+
+板上已通过以下检查：
+
+- USB鼠标在设置页初始化，进入Mac复用同一Host。早期实测日志明确报HS hub
+  下FS设备不支持TT，改为同一HS控制器的FS/LS根端口后，鼠标正常枚举，解析
+  5按钮、16位X/Y、8位滚轮报告，并持续收到中断输入（单次运行计数达到75包）。
+- 4 MHz/1-bit SD挂载3840 MB卡，ROM和系统盘读取成功；原20 MHz/4-bit的
+  配置写超时消失，`boot-save`通过。
+- USB2读取目录与启动配置、上传1880字节诊断文件、重新下载逐字节核对通过。
+  再替换为2279字节文件，当前文件及`.previous`旧文件均下载核对通过。
+- System 7进入Finder桌面，For You及Start Here图标可见；串口输入通过
+  Finder的Special菜单完成正常关机，随后重新进入维护设置、替换文件并再次
+  启动Mac。重新挂盘日志为`Volume OK`，XPRAM也正常保存/恢复。
+- Mac运行时，SD维护命令及固件更新器均拒绝操作，没有强制复位运行中的Mac。
+- 从下载模式用看门狗复位曾出现bootloader异常并进入恢复页。PC工具改用
+  原生USB RTS复位后，25秒串口记录无panic/恢复页，自动启动Mac通过。
+- 构建脚本自动归档原镜像及JSON，并校验归档哈希。两环境再次运行成功，
+  发布二进制哈希保持不变，日志为`amac-p4-*-archive-verified.log`。
+
+文件维护最初发现的loopTask栈保护异常已修正：4096字节读回缓冲改为对象
+存储，生产目标的`SdMaintenance::execute`栈帧降为1200字节；随后目录、
+上传、校验、替换、备份及启动实测均无该异常。复位/GPIO初始化顺序、ADC
+通道首次配置以及生产芯片400 MHz设置告警也已修正。
+
+实板证据位于`artifacts/maintenance/2026-11-11/`：
+
+- `new-firmware-boot.log`、`hardware-maintenance-result.json`
+- `replacement-and-restart-result.json`、`maintenance-reentry-uart.log`
+- `native-rts-reset.log`、`native-reset-result.json`
+- `updater-running-guest-guard.log`、`final-desktop.png`
+
+诊断文件`AMAC_USB_TEST.TXT`及其`.previous`留在SD根目录，不修改Mac盘内
+文件。截屏来自实板帧缓冲，并非相机拍摄；面板实际色彩、亮度、电流、实物
+断电中断更新、电池阈值/深睡电流及C5联网仍不属于本次硬件验收范围。
+
 ## 2026-11-10：实板烧录与 SD 卡准备
 
 已通过 ESP32 内部 USB Serial/JTAG（本机 COM12）烧录现有 0.4.0 Rev3
@@ -54,7 +123,7 @@ GPIO/ADC 初始化告警仍需后续排查，屏幕、键鼠和电源硬件也�
 - `artifacts/sdcard/2026-11-10/chkdsk.log`、`ejection-reader.json`
 - `artifacts/sdcard/2026-11-10/device-boot.log`
 
-## 0.4.0 桌面与系统入口（当前版本）
+## 0.4.0 桌面与系统入口（历史记录）
 
 2026-11-09，版本`5.4-beta.1+amac.0.4.0`。生日礼物改用桌面For You图标，
 增加控制面板Birthday Settings、苹果菜单Pocket Terminal和About This Gift。
