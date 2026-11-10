@@ -1,5 +1,49 @@
 # aMac 验证记录
 
+## 2026-11-10：实板烧录与 SD 卡准备
+
+已通过 ESP32 内部 USB Serial/JTAG（本机 COM12）烧录现有 0.4.0 Rev3
+合并镜像，偏移为 `0x0`。实际芯片为 ESP32-P4 revision v3.2，Flash 16 MB，
+PSRAM 32 MiB；固件串口输出版本 `5.4-beta.1+amac.0.4.0`。
+镜像、源码提交和哈希仍采用下方 0.4.0 记录，本次没有改变固件。
+
+使用独立安装的 esptool 5.3.1；旧 5.2.0 stub 在该芯片上不能正常运行。
+写入前保存原 Flash 前 2 MiB，SHA-256 为
+`4bda3a28f4ffe603c0ec1258c0034d65a1a0d35ab7bd523a834608adabf03cc5`。
+写入时的哈希校验通过，随后用无 stub 的 ROM 命令独立核对整个写入区域，
+MD5 为 `8b7f164c0c7761db3e733a0856b9e5e0`，与镜像匹配。
+整段流式读回曾中断，因此不把它记录为完整读回 SHA-256 验证通过。
+未修改 eFuse，未执行整片擦除。
+
+首次串口启动记录到 SD 初始化 `0x107` 超时，随后报告找不到 SD/ROM，
+尚未进入 Mac。复位过程中还出现过一次 bootloader Illegal instruction 后
+看门狗重启；不能据此宣称冷启动稳定性已经验证。CPU 360 MHz 设置失败及
+GPIO/ADC 初始化告警仍需后续排查，屏幕、键鼠和电源硬件也尚未完成验证。
+
+已准备用户连接的约 4 GB USB 读卡器中的 SD 卡（当时为 F:、Disk 2）。
+保留现有 MBR/FAT32 和原有文件，没有格式化或重新分区。电脑模拟器先正常
+关机，确认 HFS 正常卸载并持有会话锁后，复制带生日图标的 System 7 磁盘。
+卡根目录文件如下，复制后逐项重新读取并核对 SHA-256：
+
+| 文件 | 字节数 | SHA-256 |
+| --- | ---: | --- |
+| `Q650.ROM` | 1048576 | `05ad753fb594e656cf078023ec189e09e2a7655a780de993b75b8c51ed6b09ca` |
+| `Macintosh.dsk` | 1048576000 | `8b5d82d6ddab6953f1476be2f3517d8e3e88794f0c766141e42b5fcddf937e9a` |
+| `basilisk_settings.txt` | 137 | `e78dedb9f1b9e7af5d52e26834df1f6da548120026a1c32b5c5e13d3d9110ce8` |
+
+配置采用 16 MB Mac RAM、0 度方向、直接启动 `/Macintosh.dsk`，关闭声音和
+自动 Wi-Fi。只读 `chkdsk` 检查通过，剩余空间 2968354816 字节。
+读卡器已通过 Windows 安全弹出，尚需插回设备、重新上电后验证 SD 读取与
+实板 Mac 启动。以上复制检查不等同于板上 SDMMC 验证。
+
+本地证据（不纳入 Git，ROM 和客户机磁盘也不纳入 Git）：
+
+- `artifacts/flash/2026-11-10/usbjtag-flash-session.log`
+- `artifacts/flash/2026-11-10/usbjtag-rom-verify-boot.log`
+- `artifacts/flash/2026-11-10/usbjtag-run-001/result.json`、`boot.log`
+- `artifacts/sdcard/2026-11-10/preparation.json`、`preparation.log`
+- `artifacts/sdcard/2026-11-10/chkdsk.log`、`ejection-reader.json`
+
 ## 0.4.0 桌面与系统入口（当前版本）
 
 2026-11-09，版本`5.4-beta.1+amac.0.4.0`。生日礼物改用桌面For You图标，
@@ -62,7 +106,8 @@ System 7本地测试盘的桌面图标布局曾出现异常，已重新导入同
 桌面版同一固件状态机/绘图加SDL2适配，在真正的System 7与Mac OS 8中运行，
 未模拟ESP32电源外设。最终桌面程序SHA-256为
 `99c108f348911345d6a873c46ddc9fb96a12c878fd95729d38c8c30c26ac746b`。
-目前尚未连接实板；屏幕、USB唤醒、ADC及深睡电流不属于电脑模拟验证范围。
+上述为2026-11-09电脑验证结果；后续烧录与SD准备见顶部2026-11-10记录。
+屏幕、USB唤醒、ADC及深睡电流不属于电脑模拟验证范围。
 
 ## 0.3.0 生日礼物彩蛋（历史记录）
 

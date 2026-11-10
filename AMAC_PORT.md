@@ -1,7 +1,8 @@
 # aMac P4C5 移植说明
 
-2026-11-09，版本 `5.4-beta.1+amac.0.4.0`。这是使用用户补充的
-`kernel修改说明.zip` 中屏幕初始化表和时序的移植版，尚未连接实板验证。
+2026-11-10，版本 `5.4-beta.1+amac.0.4.0`。这是使用用户补充的
+`kernel修改说明.zip` 中屏幕初始化表和时序的移植版。已通过内部 USB Serial/JTAG
+烧录 P4 v3.2 并校验，SD 卡已准备；实板 Mac 启动与屏幕仍待验证。
 完整依据和格式适配见 [屏幕驱动参考](hardware/reference/HD20034_KERNEL_REFERENCE.md)。
 
 ## 代码与硬件基线
@@ -101,17 +102,39 @@ Mac 客户机为 480×360，要求 640×480 等较高分辨率的软件仍可能
 application（0x10000），并检查芯片 ID 与 SDK revision。生成文件、SDK 与
 Mac ROM/磁盘镜像不进 Git。
 
-## 初次上板
+## 上板与 SD 卡
 
-本次没有执行实物烧录。以下 COM7 是示例，应替换为实际调试口；使用底板 USB1
-串口桥，并把烧录切换设为 P4。先读取芯片版本，再选对应镜像：
+2026-11-10 已用 esptool 5.3.1 经内部 USB Serial/JTAG（本机 COM12）完成
+Rev3 镜像烧录，写入校验及独立 ROM MD5 均通过。实际芯片为 P4 v3.2，
+符合 Rev3 镜像最低要求；原 Flash 前 2 MiB 已备份。固定开发依赖中的旧
+esptool 5.2.0 stub 在此芯片上异常，因此本次烧录工具独立安装，没有改动 SDK。
+固件控制台仍走 USB1 的 CH343 UART（本机 COM7，切换设为 P4）。完整证据见
+[验证记录](AMAC_VALIDATION.md)。
+
+后续使用独立安装的 esptool 5.3.1 可按以下方式读取芯片；端口以实际枚举为准。
+只有确认芯片版本及镜像后才执行第二条烧录命令：
 
 ```powershell
-& .\.pio-core\penv\Scripts\python.exe .\.pio-core\packages\tool-esptoolpy\esptool.py --port COM7 chip-id
-& .\.pio-core\penv\Scripts\python.exe .\.pio-core\packages\tool-esptoolpy\esptool.py --chip esp32p4 --port COM7 write-flash 0x0 .\release\aMac-P4C5-HD20034-Rev3.bin
+$env:PYTHONPATH = '.\.pio-core\tools\esptool-5.3.1'
+& .\.pio-core\penv\Scripts\python.exe -m esptool --chip esp32p4 --port COM12 --before usb-reset --after no-reset --no-stub chip-id
+& .\.pio-core\penv\Scripts\python.exe -m esptool --chip esp32p4 --port COM12 --before usb-reset write-flash 0x0 .\release\aMac-P4C5-HD20034-Rev3.bin
 ```
 
-准备 FAT32 microSD，根目录放入自己的 `Q650.ROM` 和 Mac 磁盘镜像。
+SD 卡存放 Mac ROM、虚拟硬盘及启动配置，Mac 保存的文档和系统改动也写入
+虚拟硬盘。它是当前启动所需介质，正常使用时应留在设备里。
+当前约 4 GB 卡已保留原 FAT32 格式，写入并校验以下三个根目录文件：
+
+| 文件 | 用途 |
+| --- | --- |
+| `Q650.ROM` | Mac 模拟器启动所需的 ROM |
+| `Macintosh.dsk` | 已安装生日图标和彩蛋入口的 System 7 虚拟硬盘 |
+| `basilisk_settings.txt` | 16 MB Mac RAM、0 度方向、直接启动，声音/自动 Wi-Fi 关闭 |
+
+文件系统检查通过，读卡器已安全弹出。请在设备断电时插卡，再重新上电；
+电脑校验通过后仍需确认板上 SDMMC 和 Mac 启动。以后取卡前应先正常关闭 Mac，
+再断开设备电源；用电脑修改磁盘映像时也应先退出电脑模拟器。
+
+准备其他 FAT32 microSD 时，根目录放入自己的 `Q650.ROM` 和 Mac 磁盘镜像。
 可复制 [examples/amac-sd/basilisk_settings.txt](examples/amac-sd/basilisk_settings.txt)
 到卡根目录，把 `disk` 改成实际文件名。例子关闭声音/Wi-Fi，16 MB 客户机 RAM、
 0 度方向，直接启动；配置文件中的路径是 SD 根目录相对路径。
