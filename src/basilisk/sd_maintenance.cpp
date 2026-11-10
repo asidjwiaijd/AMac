@@ -185,16 +185,16 @@ void SdMaintenance::execute(char *command, char *reply, size_t capacity)
             struct stat s;
             if (fstat(fileno(file_),&s) || (uint32_t)s.st_size!=size_) { error="readback_failed"; goto failed; }
         }
-        uint8_t data[4096]; uint32_t budget=65536;
+        uint32_t budget=65536;
 #ifdef ESP_PLATFORM
         const bool watched = esp_task_wdt_status(nullptr) == ESP_OK;
 #endif
         while (budget && verify_offset_<size_) {
             size_t wanted=size_-verify_offset_;
-            if (wanted>sizeof(data)) wanted=sizeof(data);
-            size_t got=fread(data,1,wanted,file_);
+            if (wanted>sizeof(verify_buffer_)) wanted=sizeof(verify_buffer_);
+            size_t got=fread(verify_buffer_,1,wanted,file_);
             if (got!=wanted) { error="readback_failed"; goto failed; }
-            verify_crc_=SdMaintenanceCrc(verify_crc_,data,got);
+            verify_crc_=SdMaintenanceCrc(verify_crc_,verify_buffer_,got);
             verify_offset_+=(uint32_t)got; budget-=(uint32_t)got;
 #ifdef ESP_PLATFORM
             if (watched) esp_task_wdt_reset();
