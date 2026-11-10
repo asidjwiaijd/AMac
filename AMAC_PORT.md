@@ -2,7 +2,8 @@
 
 2026-11-10，版本 `5.4-beta.1+amac.0.4.0`。这是使用用户补充的
 `kernel修改说明.zip` 中屏幕初始化表和时序的移植版。已通过内部 USB Serial/JTAG
-烧录 P4 v3.2 并校验，SD 卡已准备；实板 Mac 启动与屏幕仍待验证。
+烧录 P4 v3.2 并校验，实板已识别准备好的 SD 卡；启动时保存配置失败，
+Mac 启动与屏幕仍待验证。
 完整依据和格式适配见 [屏幕驱动参考](hardware/reference/HD20034_KERNEL_REFERENCE.md)。
 
 ## 代码与硬件基线
@@ -130,9 +131,10 @@ SD 卡存放 Mac ROM、虚拟硬盘及启动配置，Mac 保存的文档和系�
 | `Macintosh.dsk` | 已安装生日图标和彩蛋入口的 System 7 虚拟硬盘 |
 | `basilisk_settings.txt` | 16 MB Mac RAM、0 度方向、直接启动，声音/自动 Wi-Fi 关闭 |
 
-文件系统检查通过，读卡器已安全弹出。请在设备断电时插卡，再重新上电；
-电脑校验通过后仍需确认板上 SDMMC 和 Mac 启动。以后取卡前应先正常关闭 Mac，
-再断开设备电源；用电脑修改磁盘映像时也应先退出电脑模拟器。
+文件系统检查通过，读卡器已安全弹出。设备已成功识别 3840 MB 卡，找到 ROM
+和系统盘并读入配置；当前恢复设置页启动返回 `ERR BOOT save_failed`，
+板上写卡与 Mac 启动仍待排查。以后插拔卡应先正常关闭 Mac，再断开设备电源；
+用电脑修改磁盘映像时也应先退出电脑模拟器。
 
 准备其他 FAT32 microSD 时，根目录放入自己的 `Q650.ROM` 和 Mac 磁盘镜像。
 可复制 [examples/amac-sd/basilisk_settings.txt](examples/amac-sd/basilisk_settings.txt)
