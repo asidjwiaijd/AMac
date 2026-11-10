@@ -25,6 +25,9 @@ extern "C" bool BoardPowerHW_Read(BoardBatteryRaw *out)
     static bool configured = false;
     if (!configured) {
         pinMode(AMAC_CHARGE_STATUS_GPIO, INPUT);
+        // Attach the channel before configuring its attenuation. Arduino
+        // otherwise rejects analogSetPinAttenuation on an unused pin.
+        (void)analogReadMilliVolts(AMAC_BATTERY_ADC_GPIO);
         analogSetPinAttenuation(AMAC_BATTERY_ADC_GPIO, ADC_11db);
         configured = true;
     }

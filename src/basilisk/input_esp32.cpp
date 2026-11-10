@@ -41,6 +41,7 @@
 #include "freertos/task.h"
 
 #include "hid_descriptor.h"
+#include "boot_gui.h"
 
 #ifndef USB_INTERFACE_DESC
 #define USB_INTERFACE_DESC 0x04
@@ -76,6 +77,10 @@
 static TaskHandle_t input_task_handle = NULL;
 static SemaphoreHandle_t input_task_stopped = NULL;
 static volatile bool input_task_running = false;
+static volatile bool input_preboot = false;
+static int preboot_mouse_x = BOARD_MAC_SCREEN_WIDTH / 2;
+static int preboot_mouse_y = BOARD_MAC_SCREEN_HEIGHT / 2;
+static volatile uint32_t usb_mouse_reports = 0;
 
 // ============================================================================
 // USB HID Scancode to Mac ADB Keycode Translation Table
@@ -362,6 +367,7 @@ static bool isControlPhysicallyHeld() {
 static void processKeyboardReport(hid_keyboard_report_t *report,
                                    hid_keyboard_report_t *last_report,
                                    bool force_release = false) {
+    if (input_preboot) return; // ADB and the guest do not exist yet.
     if (!keyboard_enabled && !force_release) return;
 
     static const uint8_t modifier_to_mac[8] = {
@@ -654,6 +660,14 @@ static void processMouseReport(const usb_transfer_t *transfer, EndpointInfo *ep_
         }
     }
 
+    ++usb_mouse_reports;
+    if (input_preboot) {
+        preboot_mouse_x = constrain(preboot_mouse_x + dx, 0, mac_screen_width - 1);
+        preboot_mouse_y = constrain(preboot_mouse_y + dy, 0, mac_screen_height - 1);
+        BootGUI_UsbPointer(preboot_mouse_x, preboot_mouse_y, (buttons & 1) != 0);
+        return;
+    }
+
     // A HID packet can move and click at once. Update the gift's pointer
     // before hit testing that packet's button transitions.
     if (dx != 0 || dy != 0) routeMouseMove(dx, dy, true);
@@ -753,10 +767,11 @@ public:
         esp_err_t err = usb_host_install(&host_config);
         if (err != ESP_OK) {
             Serial.printf("[USB] usb_host_install() err=0x%x\n", err);
+            return;
         }
 
         const usb_host_client_config_t client_config = {
-            .is_synchronous = true,
+            .is_synchronous = false,
             .max_num_event_msg = 10,
             .async = {
                 .client_event_callback = clientEventCallback,
@@ -770,6 +785,7 @@ public:
     }
 
     void task() {
+        if (!clientHandle) return;
         esp_err_t err = usb_host_lib_handle_events(1, &eventFlags);
         (void)err;
 
@@ -1301,6 +1317,7 @@ static void inputTask(void *param)
     
     while (input_task_running) {
         Board_Update();
+        if (!input_preboot) {
         BoardPower_Poll();
 #if defined(BOARD_AMAC_P4)
         LowBatteryPoll();
@@ -1309,6 +1326,7 @@ static void inputTask(void *param)
         
         processTouchInput();
         pollTab5Keyboard();
+        }
         
         if (usbHost != NULL) {
             bool usb_active = usb_keyboard_connected || mouse_connected;
@@ -1325,15 +1343,15 @@ static void inputTask(void *param)
             }
         }
         
-        updateKeyboardLEDs();
+        if (!input_preboot) updateKeyboardLEDs();
         
         vTaskDelay(poll_interval);
     }
     
+    input_task_handle = NULL;
     if (input_task_stopped != NULL) {
         xSemaphoreGive(input_task_stopped);
     }
-    input_task_handle = NULL;
     Serial.println("[INPUT] Input task exiting");
     vTaskDelete(NULL);
 }
@@ -1344,6 +1362,14 @@ static void inputTask(void *param)
 
 bool InputInit(void)
 {
+    // Stop callbacks while resetting guest-facing state; preserve the host
+    // and the already enumerated hub/devices.
+    if (input_task_running) {
+        input_task_running = false;
+        if (xSemaphoreTake(input_task_stopped, pdMS_TO_TICKS(5000)) != pdTRUE) return false;
+    }
+    input_preboot = false;
+    BootGUI_UsbPointer(-1, -1, false);
     Serial.println("[INPUT] Initializing input subsystem...");
     
     display_width  = BoardDisplay_Width();
@@ -1378,9 +1404,11 @@ bool InputInit(void)
     tab5_keyboard_connected = BoardKeyboard_IsConnected();
     
     Serial.println("[INPUT] Initializing USB Host (hub support enabled)...");
-    usbHost = new MultiDeviceUsbHost();
-    if (usbHost != NULL) {
-        usbHost->begin();
+    if (!usbHost) {
+        usbHost = new MultiDeviceUsbHost();
+        if (usbHost) usbHost->begin();
+    }
+    if (usbHost != NULL && usbHost->clientHandle) {
         Serial.println("[INPUT] USB Host initialized - connect keyboard/mouse (hub supported)");
     } else {
         Serial.println("[INPUT] ERROR: Failed to create USB Host instance");
@@ -1414,6 +1442,29 @@ bool InputInit(void)
     
     return true;
 }
+
+bool InputInitPreboot(void)
+{
+    if (input_task_running) return true;
+    input_preboot = true;
+    if (!usbHost) {
+        usbHost = new MultiDeviceUsbHost();
+        if (usbHost) usbHost->begin();
+    }
+    if (!usbHost || !usbHost->clientHandle) return false;
+    if (!input_task_stopped) input_task_stopped = xSemaphoreCreateBinary();
+    if (!input_task_stopped) return false;
+    input_task_running = true;
+    if (xTaskCreatePinnedToCore(inputTask, "InputTask", INPUT_TASK_STACK_SIZE,
+            nullptr, INPUT_TASK_PRIORITY, &input_task_handle, INPUT_TASK_CORE) != pdPASS) {
+        input_task_running = false;
+        return false;
+    }
+    Serial.println("[INPUT] USB mouse enabled in startup settings");
+    return true;
+}
+
+uint32_t InputMouseReportCount(void) { return usb_mouse_reports; }
 
 void InputExit(void)
 {

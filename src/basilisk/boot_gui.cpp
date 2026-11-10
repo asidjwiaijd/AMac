@@ -35,6 +35,8 @@
 #include "board_touch.h"
 #include "board_wifi.h"
 #include "board_sd.h"  /* SD_FS alias */
+#include "sd_maintenance.h"
+#include <errno.h>
 #include "preboot_screens.h"  /* Mac OS 8 Platinum screens on a 2x canvas */
 #include "usb_msc.h"
 
@@ -82,6 +84,16 @@ static bool touch_injected = false;
 static bool touch_injected_pressed = false;
 static int16_t touch_injected_x = 0;
 static int16_t touch_injected_y = 0;
+static bool usb_pointer_active = false, usb_pointer_pressed = false;
+static int usb_pointer_x = 0, usb_pointer_y = 0;
+
+void BootGUI_UsbPointer(int x, int y, bool pressed)
+{
+    portENTER_CRITICAL(&touch_spinlock);
+    usb_pointer_active = x >= 0 && y >= 0;
+    usb_pointer_x = x; usb_pointer_y = y; usb_pointer_pressed = pressed;
+    portEXIT_CRITICAL(&touch_spinlock);
+}
 
 // Touch task function - runs on Core 0
 static void touchTask(void* param)
@@ -109,12 +121,19 @@ static void touchTask(void* param)
 
         BoardTouchDetail touch = BoardTouch_GetDetail();
         portENTER_CRITICAL(&touch_spinlock);
+        if (usb_pointer_active) {
+            touch.pressed = usb_pointer_pressed;
+            touch.x = usb_pointer_x; touch.y = usb_pointer_y;
+        }
+        bool pointer_visible = usb_pointer_active;
+        int pointer_x = usb_pointer_x, pointer_y = usb_pointer_y;
         if (touch_injected) {
             touch.pressed = touch_injected_pressed;
             touch.x = touch_injected_x;
             touch.y = touch_injected_y;
         }
         portEXIT_CRITICAL(&touch_spinlock);
+        PrebootUI::SetPointer(pointer_x, pointer_y, pointer_visible);
         bool current_pressed = touch.pressed;
 
         // Detect edges ourselves (don't rely on M5's edge detection)
@@ -345,6 +364,9 @@ static int extfs_scroll_offset = 0;
 // ============================================================================
 
 static bool gui_initialized = false;
+static SdMaintenance sd_maintenance(BOARD_SD_MOUNT_POINT);
+static uint32_t sd_transfer_activity = 0;
+static char settings_error[72] = {};
 static const char *control_phase = "initializing";
 static const char *control_screen = "none";
 static bool control_boot_requested = false;
@@ -464,6 +486,10 @@ static void loadSettings(void)
 
 static bool saveSettings(void)
 {
+    if (sd_maintenance.busy()) {
+        snprintf(settings_error, sizeof(settings_error), "USB file transfer in progress");
+        return false;
+    }
     // Write and verify a complete replacement before moving the old file.
     // FAT rename is not an atomic overwrite, so retain a recoverable backup.
     String text;
@@ -484,7 +510,11 @@ static bool saveSettings(void)
     const char *backup = "/basilisk_settings.bak";
     if (SD_FS.exists(temp) && !SD_FS.remove(temp)) return false;
     File file = SD_FS.open(temp, FILE_WRITE);
-    if (!file) return false;
+    if (!file) {
+        snprintf(settings_error, sizeof(settings_error), "SD write failed. Check USB diagnostics.");
+        Serial.printf("[BOOT_GUI] Settings temp open failed: errno=%d\n", errno);
+        return false;
+    }
     size_t written = file.print(text);
     file.flush();
     file.close();
@@ -494,7 +524,12 @@ static bool saveSettings(void)
         verified = file.read() == (uint8_t)text[i];
     }
     file.close();
-    if (!verified) return false;
+    if (!verified) {
+        snprintf(settings_error, sizeof(settings_error), "SD write/verify failed. Settings kept.");
+        Serial.printf("[BOOT_GUI] Settings verification failed: wrote=%u expected=%u errno=%d\n",
+                      (unsigned)written, (unsigned)text.length(), errno);
+        return false;
+    }
     if (SD_FS.exists(backup) && !SD_FS.remove(backup)) return false;
     bool had_previous = SD_FS.exists(SETTINGS_FILE);
     if (had_previous && !SD_FS.rename(SETTINGS_FILE, backup)) return false;
@@ -504,6 +539,7 @@ static bool saveSettings(void)
     }
     if (had_previous) SD_FS.remove(backup);
     Serial.println("[BOOT_GUI] Settings saved");
+    settings_error[0] = 0;
     return true;
 }
 
@@ -1019,7 +1055,7 @@ static void runSettingsScreen(void)
                         } else if (pressed == Screens::kUsbButton) {
                             next = kOpenUsb;
                         } else if (pressed == Screens::kStartButton) {
-                            next = kStart;
+                            if (saveSettings()) { control_boot_requested = true; next = kStart; }
                         }
                         Serial.printf("[BOOT_GUI] Control %d activated\n", pressed);
                     }
@@ -1058,7 +1094,7 @@ static void runSettingsScreen(void)
             v.usb_available = usb_available;
             v.wifi_bars = wifi.bars;
             v.wifi_status = wifi.status;
-            v.wifi_detail = wifi.detail;
+            v.wifi_detail = settings_error[0] ? settings_error : wifi.detail;
             v.pressed = inside ? pressed : Screens::kNoControl;
 
             SettingsKey key;
@@ -1077,13 +1113,14 @@ static void runSettingsScreen(void)
             key.rotate = v.rotate180;
             memcpy(key.clock, clock, sizeof(key.clock));
             memcpy(key.status, wifi.status, sizeof(key.status));
-            memcpy(key.detail, wifi.detail, sizeof(key.detail));
+            snprintf(key.detail, sizeof(key.detail), "%s", v.wifi_detail);
             if (!painted || memcmp(&key, &shown, sizeof(key)) != 0) {
                 Screens::PaintSettings(L, v);
                 UI::Present();
                 memcpy(&shown, &key, sizeof(key));  // padding included, for memcmp
                 painted = true;
             }
+            UI::Present(); // Present pointer movement even without a widget change.
             delay(2);
         }
 
@@ -1399,6 +1436,7 @@ static void runWiFiScreen(void)
             memcpy(&shown, &key, sizeof(key));  // padding included, for memcmp
             painted = true;
         }
+        UI::Present();
         delay(2);
     }
 
@@ -1667,6 +1705,16 @@ static String controlExecute(char *command)
     if (strcmp(control_phase, "preboot")) return "ERR BOOT enter_preboot_first";
     if (control_restart_at || control_boot_requested) return "ERR BOOT transition_pending";
     if (strcmp(control_screen, "settings")) return "ERR BOOT settings_screen_required";
+    if (!strncmp(command, "SD ", 3)) {
+        char reply[600];
+        const bool refresh = !strcmp(command + 3, "COMMIT") || !strcmp(command + 3, "ABORT");
+        sd_maintenance.execute(command + 3, reply, sizeof(reply));
+        sd_transfer_activity = millis();
+        if (refresh && !sd_maintenance.busy()) {
+            scanDiskFiles(); scanCDROMFiles(); scanExtFSFolders();
+        }
+        return String(reply);
+    }
     if (!strncmp(command, "SET ", 4)) {
         char *key = command + 4;
         char *hex = strchr(key, ' ');
@@ -1772,6 +1820,10 @@ bool BootGUI_ControlRequest(const char *command, char *reply, size_t capacity)
 
 void BootGUI_ControlPoll(void)
 {
+    if (sd_maintenance.busy() && (uint32_t)(millis() - sd_transfer_activity) > 60000) {
+        sd_maintenance.abort();
+        Serial.println("[SD] Aborted idle USB transfer; original file preserved");
+    }
     if (!control_requests) return;
     __atomic_store_n(&boot_control_pending, control_restart_at != 0, __ATOMIC_RELEASE);
     BootControlRequest request;
@@ -1786,6 +1838,7 @@ void BootGUI_ControlPoll(void)
 }
 
 void BootGUI_ControlSetPhase(const char *phase) { control_phase = phase; }
+bool BootGUI_RecoverSdUpdate(void) { return sd_maintenance.recover(); }
 bool BootGUI_StartInSettings(void) { return control_hold; }
 bool BootGUI_RestartPending(void)
 {
@@ -1831,6 +1884,7 @@ bool BootGUI_Init(void)
                   BoardDisplay_Width(), BoardDisplay_Height());
 
     // Load saved settings
+    if (!sd_maintenance.recover()) Serial.println("[SD] Interrupted update needs inspection");
     loadSettings();
 
     // Scan for disk files
