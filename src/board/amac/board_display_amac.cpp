@@ -34,6 +34,7 @@ static void releaseDisplay(void)
 extern "C" void BoardDisplay_SetBacklight(int percent)
 {
     // The potentiometer sets LED current. This GPIO only gates the supply.
+    pinMode(AMAC_LCD_BACKLIGHT_GPIO, OUTPUT);
     digitalWrite(AMAC_LCD_BACKLIGHT_GPIO,
                  percent > 0 ? AMAC_BACKLIGHT_ON_LEVEL : !AMAC_BACKLIGHT_ON_LEVEL);
 }
@@ -41,10 +42,10 @@ extern "C" void BoardDisplay_SetBacklight(int percent)
 extern "C" bool BoardDisplay_Init(void)
 {
     if (s_initialized) return true;
-    digitalWrite(AMAC_LCD_BACKLIGHT_GPIO, !AMAC_BACKLIGHT_ON_LEVEL);
     pinMode(AMAC_LCD_BACKLIGHT_GPIO, OUTPUT);
-    digitalWrite(AMAC_LCD_RESET_GPIO, LOW);
+    digitalWrite(AMAC_LCD_BACKLIGHT_GPIO, !AMAC_BACKLIGHT_ON_LEVEL);
     pinMode(AMAC_LCD_RESET_GPIO, OUTPUT);
+    digitalWrite(AMAC_LCD_RESET_GPIO, LOW);
 
     esp_ldo_channel_config_t ldo = {};
     ldo.chan_id = 3;

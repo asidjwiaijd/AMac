@@ -208,6 +208,23 @@ int main()
         assert(shown[5 * W + 3] == UI::kBlue && shown[W * H - 1] == UI::kRed);
     }
 
+    // Pointer movement, clipping, failed push/retry and removal must restore
+    // the original canvas, rather than leave trails or contaminate screenshots.
+    UI::Fill(0, 0, W, H, UI::kGrayE6);
+    UI::Present();
+    for (auto xy : {std::pair<int,int>{12,30}, {W-2,H-2}, {-6,-7}}) {
+        UI::SetPointer(xy.first,xy.second,true);
+        cache_result = -1;
+        UI::Present();
+        cache_result = ESP_OK;
+        UI::Present();
+        expectScaled("pointer-retry");
+    }
+    UI::SetPointer(0,0,false); UI::Present();
+    std::vector<uint8_t> restored(W*H); uint16_t colors[256],rw,rh;
+    assert(UI::CaptureFrame(restored.data(),restored.size(),colors,&rw,&rh));
+    for (uint8_t pixel:restored) assert(pixel==UI::kGrayE6);
+
     // Long names are shortened rather than overflowing.
     char fitted[32];
     UI::FitText("A very long CD-ROM image name.iso", 60, fitted, sizeof(fitted));

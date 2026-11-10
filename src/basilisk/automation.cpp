@@ -39,6 +39,11 @@
 #include "board_config.h"
 
 #include <Arduino.h>
+#if defined(BOARD_AMAC_P4)
+#include <HWCDC.h>
+static HWCDC s_maintenance_usb;
+#endif
+static Stream *s_protocol_port = &Serial;
 #include <WiFi.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -380,7 +385,7 @@ static bool writeScreenshotRecord(const uint8_t *data, size_t size)
         // HWCDC owns the TX queue and serializes writers. Flushing every 32
         // bytes both stalls the task and can discard queued data after a USB
         // timeout. Submit the complete record and let its ISR drain the FIFO.
-        const size_t written = Serial.write(data + offset, size - offset);
+        const size_t written = s_protocol_port->write(data + offset, size - offset);
         offset += written;
         if (offset < size) vTaskDelay(pdMS_TO_TICKS(1));
     }
@@ -874,6 +879,18 @@ static void processLegacyCommand(char *command)
         } else {
             protocolReply("@B2 ERR BOOT timeout_or_unavailable\n");
         }
+        return;
+    }
+    if (strncmp(command, "SD ", 3) == 0) {
+        char reply[600];
+        if (BootGUI_ControlRequest(command, reply, sizeof(reply))) protocolReply("@B2 %s\n", reply);
+        else protocolReply("@B2 ERR SD timeout_or_unavailable\n");
+        return;
+    }
+    if (!strcmp(command, "INPUT")) {
+        protocolReply("@B2 OK INPUT mouse=%u keyboard=%u reports=%lu\n",
+                      InputIsMouseConnected(), InputIsKeyboardConnected(),
+                      (unsigned long)InputMouseReportCount());
         return;
     }
     if (strcmp(command, "HTTP") == 0) {
@@ -1641,15 +1658,26 @@ static void processCommand(char *command)
 static void automationTask(void *param)
 {
     (void)param;
-    static char line[AUTOMATION_LINE_CAPACITY];
-    size_t length = 0;
-    bool overflow = false;
+    static char lines[2][AUTOMATION_LINE_CAPACITY];
+    size_t lengths[2] = {};
+    bool overflows[2] = {};
+    Stream *ports[2] = {&Serial, nullptr};
+#if defined(BOARD_AMAC_P4)
+    ports[1] = &s_maintenance_usb;
+#endif
     uint32_t last_command_ms = millis();
 
     protocolReply("@B2 READY %d\n", AUTOMATION_PROTOCOL_VERSION);
     while (automation_task_running) {
-        while (Serial.available() > 0) {
-            const int raw = Serial.read();
+        for (int port = 0; port < 2; ++port) {
+        if (!ports[port]) continue;
+        s_protocol_port = ports[port];
+        char *line = lines[port];
+        size_t &length = lengths[port];
+        bool &overflow = overflows[port];
+        int budget = AUTOMATION_LINE_CAPACITY * 2;
+        while (ports[port]->available() > 0 && --budget > 0) {
+            const int raw = ports[port]->read();
             if (raw < 0) break;
             const char ch = (char)raw;
             if (ch == '\n') {
@@ -1667,12 +1695,13 @@ static void automationTask(void *param)
                 length = 0;
                 overflow = false;
             } else if (!overflow) {
-                if (length + 1 < sizeof(line)) {
+                if (length + 1 < AUTOMATION_LINE_CAPACITY) {
                     line[length++] = ch;
                 } else {
                     overflow = true;
                 }
             }
+        }
         }
         if ((uint32_t)(millis() - last_command_ms) >= AUTOMATION_INPUT_IDLE_RELEASE_MS) {
             if (s_emulator_ready) InputAutomationReleaseAll();
@@ -1726,6 +1755,12 @@ extern "C" void AutomationPrepareNetwork(void)
 extern "C" bool AutomationStartSerial(void)
 {
     if (automation_task_handle != NULL) return true;
+#if defined(BOARD_AMAC_P4)
+    s_maintenance_usb.setRxBufferSize(4096);
+    s_maintenance_usb.setTxBufferSize(4096);
+    s_maintenance_usb.setTxTimeoutMs(2000);
+    s_maintenance_usb.begin();
+#endif
 #if defined(BOARD_M5STACK_TAB5)
     /* HWCDC defaults to a 100 ms TX-lock/ring-buffer timeout. A screenshot
      * line can otherwise be dropped when a diagnostic log briefly owns the

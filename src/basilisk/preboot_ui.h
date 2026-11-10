@@ -66,6 +66,8 @@ int Height(void);
 void Present(void);
 /* Force the next Present() to push the whole canvas. */
 void InvalidateAll(void);
+// Composited at Present(), leaving the backing canvas intact.
+void SetPointer(int x, int y, bool visible);
 
 /* Copy the canvas as 8-bit indices plus an RGB565 palette (256 entries).
  * Safe from another task; waits for an in-progress Present(). */

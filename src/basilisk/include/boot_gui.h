@@ -36,6 +36,7 @@ bool BootGUI_ControlRequest(const char *command, char *reply, size_t capacity);
 void BootGUI_ControlPoll(void);
 extern bool boot_control_pending; // Access only with __atomic_* operations.
 void BootGUI_ControlSetPhase(const char *phase);
+bool BootGUI_RecoverSdUpdate(void);
 bool BootGUI_StartInSettings(void);
 bool BootGUI_RestartPending(void);
 void BootGUI_Restart(void);
@@ -87,6 +88,7 @@ bool BootGUI_PollTouch(BootGUITouch *out);
  */
 bool BootGUI_InjectTouch(int x, int y, bool pressed);
 void BootGUI_EndInjectedTouch(void);
+void BootGUI_UsbPointer(int x, int y, bool pressed);
 
 /*
  *  Get the selected hard disk path

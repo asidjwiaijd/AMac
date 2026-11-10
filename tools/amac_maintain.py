@@ -1,0 +1,62 @@
+"""Small interactive USB maintenance menu; no SD-card removal required."""
+from pathlib import Path
+import subprocess
+import sys
+from serial.tools import list_ports
+from mac_control import MacControl,ControlError
+
+ROOT=Path(__file__).resolve().parents[1]
+
+def connect():
+    ports=sorted(list_ports.comports(),key=lambda p:0 if p.vid==0x303a else 1)
+    for port in ports:
+        if (port.vid,port.pid) not in ((0x303a,0x1001),(0x1a86,0x55d3)): continue
+        client=None
+        try:
+            client=MacControl(port.device,reset_on_failure=False);client.connect(timeout=2)
+            return client
+        except (OSError,ControlError):
+            if client: client.close()
+    raise ControlError('未找到设备。请接好 USB2 数据线并保持供电。')
+
+def main():
+    print('aMac USB 维护工具\n固件和 SD 文件均可通过线缆更新，不需要取出 SD 卡。')
+    while True:
+        print('\n1 查看卡内文件  2 复制文件到设备  3 备份文件到电脑\n4 进入维护设置  5 启动 Mac  6 鼠标状态  7 更新固件  0 退出')
+        choice=input('请选择：').strip()
+        if choice=='0': return 0
+        try:
+            if choice=='7':
+                subprocess.run([sys.executable,str(ROOT/'tools/amac_update.py')],cwd=ROOT,check=True)
+                continue
+            with connect() as client:
+                status=client.boot_status()
+                if choice in ('1','2','3','4') and status['phase']=='emulator':
+                    print('请先在 Mac 的 Special 菜单中正常关机，再选择“进入维护设置”。');continue
+                if choice=='4': print(client.boot_enter());continue
+                if choice in ('1','2','3') and status['phase']!='preboot':
+                    print('请先选择“进入维护设置”。');continue
+                if choice=='1':
+                    for name in client.sd_list(): print(name)
+                elif choice=='2':
+                    source=Path(input('电脑文件完整路径：').strip().strip('"'))
+                    name=input(f'卡内文件名（回车使用 {source.name}）：').strip() or source.name
+                    last=[-1]
+                    def progress(done,total):
+                        percent=done*100//max(1,total)
+                        if percent!=last[0] and percent%5==0:
+                            print(f'传输 {percent}%（{done}/{total} 字节）',flush=True);last[0]=percent
+                    print('使用临时文件和校验，原文件保留为 .previous；完整系统盘传输可能较久。')
+                    print(client.sd_put(source,name,progress))
+                elif choice=='3':
+                    name=input('卡内文件名：').strip()
+                    output=Path(input('电脑保存完整路径：').strip().strip('"'))
+                    print(client.sd_get(name,output))
+                elif choice=='5': print(client.boot_start())
+                elif choice=='6': print(client.request('INPUT','OK INPUT'))
+        except (OSError,ValueError,ControlError,subprocess.CalledProcessError) as error:
+            print('操作未完成：',error)
+
+if __name__=='__main__':
+    try: raise SystemExit(main())
+    except (KeyboardInterrupt,EOFError): pass

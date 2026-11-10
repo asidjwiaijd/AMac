@@ -36,6 +36,8 @@ static uint8_t *s_shown = nullptr;    /* what the panel shows (last Present) */
 static int s_w = 0, s_h = 0;
 static bool s_invalid = true;
 static SemaphoreHandle_t s_lock = nullptr;
+static int s_pointer_x = 0, s_pointer_y = 0;
+static bool s_pointer_visible = false;
 
 static uint16_t s_palette[256];
 static uint32_t s_pairs[256];         /* RGB565 in both halfwords for 2x tiles */
@@ -153,6 +155,7 @@ void Release(void)
     freeCanvas(s_canvas);
     freeCanvas(s_shown);
     s_canvas = s_shown = nullptr;
+    s_pointer_visible = false;
     s_w = s_h = 0;
     xSemaphoreGive(s_lock);
 }
@@ -161,11 +164,31 @@ bool Active(void) { return s_canvas != nullptr; }
 int Width(void) { return s_w; }
 int Height(void) { return s_h; }
 void InvalidateAll(void) { s_invalid = true; }
+void SetPointer(int x, int y, bool visible)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_pointer_x = x; s_pointer_y = y; s_pointer_visible = visible;
+    xSemaphoreGive(s_lock);
+}
 
 void Present(void)
 {
     if (!s_canvas) return;
     xSemaphoreTake(s_lock, portMAX_DELAY);
+    uint8_t saved[16 * 10];
+    int offsets[16 * 10], count = 0;
+    if (s_pointer_visible) {
+        for (int y = 0; y < 16; ++y) for (int x = 0; x < 10; ++x) {
+            bool arrow = y < 11 ? x <= y * 2 / 3 : (x >= 3 && x <= 5 && y < 15);
+            int px = s_pointer_x + x, py = s_pointer_y + y;
+            if (!arrow || px < 0 || py < 0 || px >= s_w || py >= s_h) continue;
+            int offset = py * s_w + px;
+            offsets[count] = offset; saved[count++] = s_canvas[offset];
+            s_canvas[offset] = x == 0 || x == y * 2 / 3 || y == 10 ||
+                (y >= 11 && (x == 3 || x == 5 || y == 14)) ? kBlack : kWhite;
+        }
+    }
     // Find the bounding box of logical pixels that differ from the panel.
     int top = s_h, bottom = -1, left = s_w, right = -1;
     for (int y = 0; y < s_h; ++y) {
@@ -197,6 +220,7 @@ void Present(void)
             s_invalid = false;
         }
     }
+    for (int i = 0; i < count; ++i) s_canvas[offsets[i]] = saved[i];
     xSemaphoreGive(s_lock);
 }
 

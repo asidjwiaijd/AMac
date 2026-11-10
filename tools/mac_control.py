@@ -333,6 +333,8 @@ class MacControl:
         attempt_timeout = max(0.5, len(command) * 0.03) if command.startswith("TYPE ") else 0.5
         if command.startswith("BOOT "):
             attempt_timeout = 5.0
+        if command.startswith("SD "):
+            attempt_timeout = max(5.0, timeout / 5)
         self.last_request_retries = 0
         for attempt in range(5 if token else 1):
             if time.monotonic() >= deadline:
@@ -524,6 +526,95 @@ class MacControl:
         if action not in commands:
             raise ControlError(f"unknown boot action: {action}")
         self._boot_request(commands[action], commands[action])
+
+    @staticmethod
+    def _sd_name(name: str, for_write: bool = False) -> str:
+        name = name.removeprefix("/")
+        if (not name or len(name) > 80 or name.startswith(".") or ".." in name
+                or any(ord(c) < 32 or ord(c) > 126 or c in '/\\:*?"<>|' for c in name)
+                or name.endswith((" ", ".")) or ".upload" in name.lower()
+                or (for_write and ".previous" in name.lower())):
+            raise ControlError("use an ASCII file name in the SD root (up to 80 characters)")
+        return name.encode("ascii").hex()
+
+    def _sd_request(self, command: str, expected: str, timeout: float = 15.0) -> str:
+        return self.request(f"SD {command}", f"OK SD {expected}", timeout=timeout)
+
+    def sd_list(self) -> list[str]:
+        result = []
+        for index in range(4096):
+            fields = self._sd_request(f"LIST {index}", "ITEM").split()
+            if len(fields) != 6 or not fields[4].isdigit():
+                raise ControlError("invalid SD directory reply")
+            if index >= int(fields[4]): return result
+            result.append(bytes.fromhex(fields[5]).decode("ascii"))
+        raise ControlError("too many SD files")
+
+    def sd_stat(self, name: str) -> int:
+        fields = self._sd_request(f"STAT {self._sd_name(name)}", "STAT").split()
+        if len(fields) != 5 or not fields[4].isdigit():
+            raise ControlError("invalid SD file size")
+        return int(fields[4])
+
+    def sd_put(self, source: Path, name: str, progress=None) -> dict[str, int]:
+        encoded = self._sd_name(name, for_write=True)
+        crc, size = 0, source.stat().st_size
+        if size > 0x7fffffff: raise ControlError("SD file must be smaller than 2 GiB")
+        with source.open("rb") as file:
+            while data := file.read(128 * 1024): crc = zlib.crc32(data, crc)
+        begun = False
+        try:
+            self._sd_request(f"BEGIN {encoded} {size} {crc:08X}", "BEGIN")
+            begun = True
+            offset = 0
+            with source.open("rb") as file:
+                while data := file.read(256):
+                    reply = self._sd_request(f"WRITE {offset} {data.hex()} {zlib.crc32(data):08X}", "WRITE")
+                    offset += len(data)
+                    if reply.split()[-1] != str(offset): raise ControlError("SD offset mismatch")
+                    if progress: progress(offset, size)
+            verified = 0
+            while True:
+                reply = self._sd_request("VERIFY", "VERIFY", timeout=30)
+                fields = reply.split()
+                if len(fields)!=6 or not fields[4].isdigit(): raise ControlError("invalid SD verification")
+                checked=int(fields[4])
+                if checked < verified or checked > size or (checked==verified and size):
+                    raise ControlError("SD verification did not advance")
+                verified=checked
+                if verified==size:
+                    if fields[5]!=f"{crc:08X}": raise ControlError("SD readback checksum mismatch")
+                    break
+            reply = self._sd_request("COMMIT", "COMMIT")
+            if reply.split()[-2:] != [str(size), f"{crc:08X}"]:
+                raise ControlError("SD commit verification mismatch")
+            begun = False
+            return {"bytes": size, "crc32": crc}
+        finally:
+            if begun:
+                try: self._sd_request("ABORT", "ABORT")
+                except (ControlError, OSError): pass
+
+    def sd_get(self, name: str, output: Path, progress=None) -> dict[str, int]:
+        encoded = self._sd_name(name)
+        size, offset, crc = self.sd_stat(name), 0, 0
+        temporary = output.with_name(output.name + ".part")
+        try:
+            with temporary.open("wb") as file:
+                while offset < size:
+                    fields = self._sd_request(f"READ {encoded} {offset} {min(256, size-offset)}", "DATA").split()
+                    if len(fields) != 7 or fields[4] != str(offset): raise ControlError("invalid SD read offset")
+                    try: data = bytes.fromhex(fields[5])
+                    except ValueError as exc: raise ControlError("invalid SD data") from exc
+                    if (len(data) != min(256,size-offset) or f"{zlib.crc32(data):08X}" != fields[6]):
+                        raise ControlError("SD read checksum mismatch")
+                    file.write(data); offset += len(data); crc = zlib.crc32(data,crc)
+                    if progress: progress(offset,size)
+                file.flush(); os.fsync(file.fileno())
+            temporary.replace(output)
+            return {"bytes": size, "crc32": crc}
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def _wait_boot_phase(self, phase: str, timeout: float) -> dict[str, Any]:
         deadline = time.monotonic() + timeout
@@ -1394,6 +1485,12 @@ def build_parser() -> argparse.ArgumentParser:
     key.add_argument("key", help="named key, numeric ADB code, or chord (command+s)")
     key.add_argument("--action", choices=("tap", "down", "up"), default="tap")
     subparsers.add_parser("release-all")
+    subparsers.add_parser("sd-list", help="list SD files in startup settings")
+    stat = subparsers.add_parser("sd-stat"); stat.add_argument("name")
+    put = subparsers.add_parser("sd-put", help="verified upload; retains the previous file")
+    put.add_argument("source", type=Path); put.add_argument("name", nargs="?")
+    get_sd = subparsers.add_parser("sd-get", help="copy an SD file to the computer")
+    get_sd.add_argument("name"); get_sd.add_argument("output", type=Path)
     subparsers.add_parser("mcp", help="run a stdio MCP server on one persistent serial connection")
     return parser
 
@@ -1414,6 +1511,14 @@ def main(argv: list[str] | None = None) -> int:
                 elif action == "start": result = control.boot_start()
                 else: result = control.boot_action(action)
                 print(json.dumps(result if result is not None else {"ok": True}, indent=2))
+            elif args.command == "sd-list":
+                print(json.dumps(control.sd_list(), indent=2))
+            elif args.command == "sd-stat":
+                print(json.dumps({"bytes": control.sd_stat(args.name)}))
+            elif args.command == "sd-put":
+                print(json.dumps(control.sd_put(args.source, args.name or args.source.name)))
+            elif args.command == "sd-get":
+                print(json.dumps(control.sd_get(args.name,args.output)))
             elif args.command == "info":
                 print(control.info())
             elif args.command == "screenshot":

@@ -57,12 +57,12 @@ int main()
     assert(!BoardPowerHW_Read(nullptr));
     BoardBatteryRaw raw = {};
     assert(BoardPowerHW_Read(&raw));
-    assert(reads == 8 && configured == 1 && raw.present && raw.pack_mv == 3800);
+    assert(reads == 9 && configured == 1 && raw.present && raw.pack_mv == 3800);
     assert(!raw.charging);
     charging = true;
     adc_mv = 1850;
     assert(BoardPowerHW_Read(&raw));
-    assert(reads == 16 && configured == 1 && raw.pack_mv == 3700 && raw.charging);
+    assert(reads == 17 && configured == 1 && raw.pack_mv == 3700 && raw.charging);
     adc_mv = 0;
     assert(BoardPowerHW_Read(&raw) && !raw.present && !raw.charging);
     std::puts("aMac battery thresholds, debounce, wake grace and ADC path passed");

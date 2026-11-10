@@ -22,6 +22,7 @@
 #include "mac_splash.h"
 #include "mac_clock.h"
 #include "low_battery.h"
+#include "input.h"
 
 #include "esp_system.h"        /* esp_register_shutdown_handler */
 
@@ -71,6 +72,7 @@ static bool initSDCard(void)
     Serial.printf("[MAIN] SD card initialized: %llu MB\n",
                   (unsigned long long)BoardSD_CardSizeMB());
 
+    if (!BootGUI_RecoverSdUpdate()) Serial.println("[SD] Update recovery needs inspection");
     /* SD_FS is SD on Tab5 (SPI) and SD_MMC on Waveshare (native SDMMC). */
     const bool hasROM   = SD_FS.exists("/Q650.ROM");
     const bool hasDisk  = SD_FS.exists("/Macintosh.dsk");
@@ -172,6 +174,9 @@ void setup(void)
     if (!BootGUI_Init()) {
         haltWith("Boot GUI initialization failed");
     }
+#if defined(BOARD_AMAC_P4)
+    if (!InputInitPreboot()) Serial.println("[INPUT] Preboot USB host unavailable");
+#endif
 
     if (!AutomationStartSerial()) {
         Serial.println("[MAIN] WARNING: Preboot serial control unavailable");

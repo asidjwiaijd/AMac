@@ -25,6 +25,8 @@ extern "C" {
  *  Returns true on success
  */
 bool InputInit(void);
+// Start USB before the guest exists; InputInit reuses the enumerated host.
+bool InputInitPreboot(void);
 
 /*
  *  Shutdown input handling
@@ -64,6 +66,7 @@ bool InputIsKeyboardConnected(void);
  *  Check if USB mouse is connected
  */
 bool InputIsMouseConnected(void);
+uint32_t InputMouseReportCount(void);
 
 /*
  * Shared ADB key broker for input producers such as the touchscreen overlay.
