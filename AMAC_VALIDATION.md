@@ -33,8 +33,11 @@ GPIO/ADC 初始化告警仍需后续排查，屏幕、键鼠和电源硬件也�
 
 配置采用 16 MB Mac RAM、0 度方向、直接启动 `/Macintosh.dsk`，关闭声音和
 自动 Wi-Fi。只读 `chkdsk` 检查通过，剩余空间 2968354816 字节。
-读卡器已通过 Windows 安全弹出，尚需插回设备、重新上电后验证 SD 读取与
-实板 Mac 启动。以上复制检查不等同于板上 SDMMC 验证。
+读卡器已通过 Windows 安全弹出。21:31 设备重新连接后，串口仍报告
+`sdmmc_init_ocr` 的 `0x107` 超时；当次上电时卡是否已插回设备尚待用户确认。
+已核对当前固件的 slot 0、GPIO39..44、固定 3.3V 配置及网表中五路 10K
+上拉对应关系，未发现引脚定义差异。仍需确认插卡后重新上电的板上 SD 读取及
+Mac 启动，以上电脑复制检查不等同于板上 SDMMC 验证。
 
 本地证据（不纳入 Git，ROM 和客户机磁盘也不纳入 Git）：
 
@@ -43,6 +46,7 @@ GPIO/ADC 初始化告警仍需后续排查，屏幕、键鼠和电源硬件也�
 - `artifacts/flash/2026-11-10/usbjtag-run-001/result.json`、`boot.log`
 - `artifacts/sdcard/2026-11-10/preparation.json`、`preparation.log`
 - `artifacts/sdcard/2026-11-10/chkdsk.log`、`ejection-reader.json`
+- `artifacts/sdcard/2026-11-10/device-boot.log`
 
 ## 0.4.0 桌面与系统入口（当前版本）
 
