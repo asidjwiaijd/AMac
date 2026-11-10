@@ -53,11 +53,11 @@ void enterDeepSleep()
     }
     MacClockPrepareDeepSleep();
     // C5 EN and LCD reset have dedicated nets. Hold them inactive while P4 sleeps.
-    digitalWrite(AMAC_WIFI_RESET_GPIO, LOW);
     pinMode(AMAC_WIFI_RESET_GPIO, OUTPUT);
+    digitalWrite(AMAC_WIFI_RESET_GPIO, LOW);
     gpio_hold_en(GPIO_NUM_54);
-    digitalWrite(AMAC_LCD_RESET_GPIO, LOW);
     pinMode(AMAC_LCD_RESET_GPIO, OUTPUT);
+    digitalWrite(AMAC_LCD_RESET_GPIO, LOW);
     gpio_hold_en(GPIO_NUM_23);
     // GPIO13 is an LP pad. RTC hold also works on pre-v3 P4 silicon.
     rtc_gpio_init(GPIO_NUM_13);
@@ -78,8 +78,8 @@ void enterDeepSleep()
 void LowBatteryBootCheck()
 {
     releaseSleepPins();
-    digitalWrite(AMAC_LCD_BACKLIGHT_GPIO, !AMAC_BACKLIGHT_ON_LEVEL);
     pinMode(AMAC_LCD_BACKLIGHT_GPIO, OUTPUT);
+    digitalWrite(AMAC_LCD_BACKLIGHT_GPIO, !AMAC_BACKLIGHT_ON_LEVEL);
     const bool checking = esp_reset_reason() == ESP_RST_DEEPSLEEP && voltage_sleep;
     BoardBatteryRaw battery = {};
     if (!BoardPowerHW_Read(&battery) || !battery.present) {

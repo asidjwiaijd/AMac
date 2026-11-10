@@ -20,6 +20,9 @@ private:
     uint32_t size_ = 0, offset_ = 0, expected_ = 0, crc_ = 0;
     uint32_t verify_offset_ = 0, verify_crc_ = 0;
     bool verifying_ = false, verified_ = false;
+    // The preboot caller has an 8 KiB task stack shared with the GUI and
+    // request queues. Keep bulk readback scratch out of that call chain.
+    uint8_t verify_buffer_[4096];
 };
 
 uint32_t SdMaintenanceCrc(uint32_t crc, const void *data, size_t size);

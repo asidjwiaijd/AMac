@@ -42,6 +42,9 @@
 
 #include "hid_descriptor.h"
 #include "boot_gui.h"
+#if defined(BOARD_AMAC_P4)
+#include "hal/usb_dwc_ll.h"
+#endif
 
 #ifndef USB_INTERFACE_DESC
 #define USB_INTERFACE_DESC 0x04
@@ -762,6 +765,9 @@ public:
     void begin() {
         const usb_host_config_t host_config = {
             .skip_phy_setup = false,
+#if defined(BOARD_AMAC_P4)
+            .root_port_unpowered = true,
+#endif
             .intr_flags = ESP_INTR_FLAG_LEVEL1,
         };
         esp_err_t err = usb_host_install(&host_config);
@@ -769,6 +775,18 @@ public:
             Serial.printf("[USB] usb_host_install() err=0x%x\n", err);
             return;
         }
+#if defined(BOARD_AMAC_P4)
+        // IDF 5.5.4 has no transaction translator for a FS/LS HID behind an
+        // HS hub. Keep the wired HS controller/PHY, but force the root hub
+        // to enumerate at FS. HW(0) is HS on this P4; HW(1) is USB2/FS.
+        usb_dwc_ll_hcfg_set_fsls_supp_only(USB_DWC_LL_GET_HW(0));
+        err = usb_host_lib_set_root_port_power(true);
+        if (err != ESP_OK) {
+            Serial.printf("[USB] Root-port power failed: 0x%x\n", err);
+            return;
+        }
+        Serial.println("[USB] Hub compatibility: full/low-speed root enabled");
+#endif
 
         const usb_host_client_config_t client_config = {
             .is_synchronous = false,
