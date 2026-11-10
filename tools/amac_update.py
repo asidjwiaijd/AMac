@@ -34,6 +34,7 @@ def update(image,port=None,recovery=False):
     import esptool
     from esptool import cmds
     from esptool.targets.esp32p4 import ESP32P4ROM
+    from esptool.loader import ESPLoader
     if esptool.__version__!='5.3.1': raise ValueError('本项目需要独立安装的 esptool 5.3.1。')
     metadata,merged,application=load_application(image)
     ports=list(list_ports.comports())
@@ -129,7 +130,9 @@ def update(image,port=None,recovery=False):
         cmds.attach_flash(esp);cmds.verify_flash(esp,[(0x10000,application)])
         record['verified']=True;record['application_sha256']=hashlib.sha256(application).hexdigest();save()
         print('更新与独立校验完成，正在重启。',flush=True)
-        try: esp.watchdog_reset()
+        # Native RTS reset boots cleanly on this P4 v3.2. A watchdog reset
+        # from download mode caused a first-boot bootloader fault/recovery.
+        try: ESPLoader.hard_reset(esp,uses_usb=True)
         except (OSError,StopIteration): pass
         return folder
     except BaseException as error:
@@ -137,7 +140,7 @@ def update(image,port=None,recovery=False):
         if not writing:
             try:
                 esp=ESP32P4ROM(connection);esp.connect(mode='usb-reset',attempts=1)
-                esp.watchdog_reset()
+                ESPLoader.hard_reset(esp,uses_usb=True)
             except Exception as reset_error: record['reset_note']=str(reset_error)
         save();raise
     finally: connection.close()
