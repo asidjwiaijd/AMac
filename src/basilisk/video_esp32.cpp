@@ -98,7 +98,11 @@
 #endif
 #define VIDEO_MIN_FRAME_INTERVAL_MS VIDEO_NOOP_REFRESH_MS
 #else
+#if defined(BOARD_AMAC_P4)
+#define VIDEO_MIN_FRAME_INTERVAL_MS 16
+#else
 #define VIDEO_MIN_FRAME_INTERVAL_MS 45
+#endif
 #endif
 
 // Frame buffer for Mac emulation (CPU writes here)

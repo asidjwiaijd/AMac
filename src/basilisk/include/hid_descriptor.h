@@ -8,8 +8,8 @@
  * device reports - it is not a full HID parser.
  *
  * Designed for use from input_esp32.cpp on the ESP32-P4 USB host stack.
- * On parse failure, callers should fall back to the heuristic byte-layout
- * decoder so vintage boot-mode mice keep working.
+ * Only relative X/Y input fields are accepted. Callers must not guess the
+ * byte layout of unsupported interfaces or unrelated Report IDs.
  */
 #ifndef BASILISK_HID_DESCRIPTOR_H
 #define BASILISK_HID_DESCRIPTOR_H
@@ -25,8 +25,7 @@ extern "C" {
 typedef struct {
     /* Whether the parser found enough fields to decode movement. We
      * require at least an X *and* a Y field; any device without both
-     * is flagged as not-a-mouse (parser returns valid=false and the
-     * dispatcher falls back to its boot-protocol heuristics). */
+     * is flagged as not-a-mouse (parser returns valid=false). */
     bool     valid;
 
     /* Report ID prefix. 0 means the device sends raw reports with no

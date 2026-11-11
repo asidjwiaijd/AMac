@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,6 +68,9 @@ bool InputIsKeyboardConnected(void);
  */
 bool InputIsMouseConnected(void);
 uint32_t InputMouseReportCount(void);
+void InputUsbDescribe(char *out,size_t capacity);
+bool InputUsbTrace(unsigned age,char *out,size_t capacity);
+void InputUsbResetDiagnostics(void);
 
 /*
  * Shared ADB key broker for input producers such as the touchscreen overlay.

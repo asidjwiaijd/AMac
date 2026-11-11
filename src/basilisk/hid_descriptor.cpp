@@ -5,8 +5,7 @@
  * enough of the HID spec to decode the standard mouse usages (X, Y,
  * Wheel, Buttons) on a Generic Desktop / Button collection. Everything
  * else is skipped. The output layout is consumed by input_esp32.cpp's
- * processMouseReport with the existing heuristic decoder still in
- * place as a fallback.
+ * processMouseReport; unsupported reports are ignored.
  */
 
 #include "hid_descriptor.h"
@@ -58,6 +57,7 @@
 /* Input main-item flags (from data[0] of an Input item) */
 #define HID_INPUT_CONSTANT      0x01
 #define HID_INPUT_VARIABLE      0x02
+#define HID_INPUT_RELATIVE      0x04
 
 #define USAGE_STACK_DEPTH       16
 
@@ -159,6 +159,8 @@ bool HidParseMouseDescriptor(const uint8_t *desc, size_t len,
     memset(&st, 0, sizeof(st));
     st.logical_min = 0;
     st.logical_max = 0;
+    ParserState globals[8];
+    unsigned global_depth=0;
 
     ReportCursor cursors[MAX_REPORT_IDS];
     int cursor_count = 0;
@@ -210,15 +212,30 @@ bool HidParseMouseDescriptor(const uint8_t *desc, size_t len,
                 st.logical_max = read_item_data(data, size_code);
                 break;
             case HID_GLOBAL_REPORT_SIZE:
+                if (read_item_data_unsigned(data,size_code)>255) return false;
                 st.report_size = (uint8_t)read_item_data_unsigned(data, size_code);
                 break;
             case HID_GLOBAL_REPORT_COUNT:
+                if (read_item_data_unsigned(data,size_code)>255) return false;
                 st.report_count = (uint8_t)read_item_data_unsigned(data, size_code);
                 break;
             case HID_GLOBAL_REPORT_ID:
                 st.report_id = (uint8_t)read_item_data_unsigned(data, size_code);
                 any_report_id_seen = true;
                 break;
+            case HID_GLOBAL_PUSH:
+                if (global_depth>=8) return false;
+                globals[global_depth++]=st;
+                break;
+            case HID_GLOBAL_POP: {
+                if (!global_depth) return false;
+                ParserState previous=globals[--global_depth];
+                // PUSH/POP restore globals only; local usages are retained.
+                st.usage_page=previous.usage_page;st.logical_min=previous.logical_min;
+                st.logical_max=previous.logical_max;st.report_size=previous.report_size;
+                st.report_count=previous.report_count;st.report_id=previous.report_id;
+                break;
+            }
             default:
                 /* Push/Pop and the unit/exponent items are ignored. */
                 break;
@@ -281,7 +298,7 @@ bool HidParseMouseDescriptor(const uint8_t *desc, size_t len,
                             }
                             candidate->button_count = (uint8_t)count;
                         }
-                    } else if (st.usage_page == HID_USAGE_PAGE_GENERIC_DESKTOP) {
+                    } else if (st.usage_page == HID_USAGE_PAGE_GENERIC_DESKTOP && (flags&HID_INPUT_RELATIVE)) {
                         /* For Generic Desktop fields, walk usages one at
                          * a time. The usage stack holds the most recent
                          * Usage items in order; if the stack runs out
@@ -290,6 +307,9 @@ bool HidParseMouseDescriptor(const uint8_t *desc, size_t len,
                             uint16_t usage = 0;
                             if (k < st.usage_count) {
                                 usage = st.usages[k];
+                            } else if (st.have_usage_min && st.have_usage_max && st.usage_min<=st.usage_max) {
+                                uint32_t value=(uint32_t)st.usage_min+k;
+                                usage=(uint16_t)(value>st.usage_max?st.usage_max:value);
                             } else if (st.usage_count > 0) {
                                 usage = st.usages[st.usage_count - 1];
                             }

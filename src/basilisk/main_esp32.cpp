@@ -176,7 +176,11 @@ static uint32 last_xpram_flush_time = 0;
 
 // Video signal interval (ms) - how often to signal video task
 // The video task runs at its own pace, this just triggers buffer swap
-#define VIDEO_SIGNAL_INTERVAL 49  // ~20 FPS target
+#if defined(BOARD_AMAC_P4)
+#define VIDEO_SIGNAL_INTERVAL 16
+#else
+#define VIDEO_SIGNAL_INTERVAL 49
+#endif
 
 // Disk flush interval (ms) - hard upper bound for how long a dirty
 // handle can sit before basilisk_loop() forces a flush during sustained
