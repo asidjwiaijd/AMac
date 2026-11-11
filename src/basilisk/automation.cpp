@@ -888,9 +888,19 @@ static void processLegacyCommand(char *command)
         return;
     }
     if (!strcmp(command, "INPUT")) {
-        protocolReply("@B2 OK INPUT mouse=%u keyboard=%u reports=%lu\n",
-                      InputIsMouseConnected(), InputIsKeyboardConnected(),
-                      (unsigned long)InputMouseReportCount());
+        char state[256];InputUsbDescribe(state,sizeof(state));
+        protocolReply("@B2 OK INPUT %s\n",state);
+        return;
+    }
+    if (!strcmp(command,"INPUT RESET")) {
+        InputUsbResetDiagnostics();protocolReply("@B2 OK INPUT RESET\n");
+        return;
+    }
+    unsigned trace_age;
+    if (sscanf(command,"INPUT TRACE %u",&trace_age)==1) {
+        char row[256];
+        if (InputUsbTrace(trace_age,row,sizeof(row))) protocolReply("@B2 OK INPUT TRACE %s\n",row);
+        else protocolReply("@B2 ERR INPUT no_sample\n");
         return;
     }
     if (strcmp(command, "HTTP") == 0) {

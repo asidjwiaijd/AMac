@@ -39,5 +39,18 @@ int main()
     const uint8_t report[]={1,0xff,4};
     assert(HidDecodeMouseReport(report,sizeof(report),&layout,&buttons,&x,&y,&w));
     assert(buttons==1 && x==-1 && y==4);
+    // Usage ranges and global PUSH/POP must preserve relative 16-bit axes.
+    const uint8_t scoped[]={0x05,1,0x16,1,0x80,0x26,0xff,0x7f,0x75,16,0x95,2,
+        0xa4,0x06,0,0xff,0x75,8,0x95,3,0x81,3,0xb4,
+        0x19,0x30,0x29,0x31,0x81,6};
+    assert(HidParseMouseDescriptor(scoped,sizeof(scoped),&layout));
+    assert(layout.x_offset_bits==24&&layout.x_size_bits==16&&layout.y_offset_bits==40);
+    const uint8_t signed16[]={0,0,0,0xd4,0xfe,0x90,1};
+    assert(HidDecodeMouseReport(signed16,sizeof(signed16),&layout,&buttons,&x,&y,&w));
+    assert(x==-300&&y==400);
+    const uint8_t absolute[]={0x05,1,0x09,0x30,0x09,0x31,0x75,16,0x95,2,0x81,2};
+    assert(!HidParseMouseDescriptor(absolute,sizeof(absolute),&layout));
+    const uint8_t bad_pop[]={0xb4};
+    assert(!HidParseMouseDescriptor(bad_pop,sizeof(bad_pop),&layout));
     puts("PASS: independent HID report streams, truncated packets and signed boot mouse movement");
 }

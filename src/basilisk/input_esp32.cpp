@@ -71,11 +71,10 @@
 // Input Task Configuration (runs on Core 0 to offload CPU emulation)
 // ============================================================================
 #define INPUT_TASK_STACK_SIZE 8192
-#define INPUT_TASK_PRIORITY   1
+#define INPUT_TASK_PRIORITY   3
 #define INPUT_TASK_CORE       0  // Run on Core 0, leaving Core 1 for CPU emulation
-#define INPUT_POLL_INTERVAL_MS 20  // 50Hz polling
-#define USB_POLL_DIV_ACTIVE   1   // Poll USB every cycle when devices are active
-#define USB_POLL_DIV_IDLE     4   // Poll USB every 64ms when idle (16ms * 4)
+#define INPUT_POLL_INTERVAL_MS 1
+#define BOARD_INPUT_INTERVAL_MS 20
 
 static TaskHandle_t input_task_handle = NULL;
 static SemaphoreHandle_t input_task_stopped = NULL;
@@ -84,6 +83,24 @@ static volatile bool input_preboot = false;
 static int preboot_mouse_x = BOARD_MAC_SCREEN_WIDTH / 2;
 static int preboot_mouse_y = BOARD_MAC_SCREEN_HEIGHT / 2;
 static volatile uint32_t usb_mouse_reports = 0;
+static uint32_t usb_rejected_reports = 0, usb_transfer_errors = 0;
+static uint32_t usb_max_service_gap_us = 0;
+struct UsbMouseTrace {
+    uint32_t sequence, ms;
+    uint8_t endpoint, interface_number, size, accepted, buttons;
+    int16_t dx, dy, wheel;
+    uint8_t raw[16];
+};
+static UsbMouseTrace usb_trace[32] = {};
+static uint32_t usb_trace_sequence = 0;
+static portMUX_TYPE usb_trace_lock = portMUX_INITIALIZER_UNLOCKED;
+static void noteUsbTransferError() { __atomic_add_fetch(&usb_transfer_errors,1,__ATOMIC_RELAXED); }
+static void noteUsbServiceGap(uint32_t gap)
+{
+    uint32_t previous=__atomic_load_n(&usb_max_service_gap_us,__ATOMIC_RELAXED);
+    while (gap>previous && !__atomic_compare_exchange_n(&usb_max_service_gap_us,&previous,gap,
+            false,__ATOMIC_RELAXED,__ATOMIC_RELAXED)) {}
+}
 
 // ============================================================================
 // USB HID Scancode to Mac ADB Keycode Translation Table
@@ -321,43 +338,13 @@ static const uint32_t LED_CHECK_INTERVAL_MS = 100;  // Check every 100ms
 // Multi-Device USB Host Types
 // ============================================================================
 
-#define MAX_USB_DEVICES 4
-#define MAX_TRANSFERS_PER_DEVICE 8
-#define MAX_INTERFACES_PER_DEVICE 8
-#define MAX_ENDPOINTS 17
-
-struct EndpointInfo {
-    uint8_t bInterfaceClass;
-    uint8_t bInterfaceSubClass;
-    uint8_t bInterfaceProtocol;
-};
-
-struct UsbDeviceSlot {
-    bool active;
-    usb_device_handle_t handle;
-    bool has_keyboard;
-    bool has_mouse;
-    usb_transfer_t *transfers[MAX_TRANSFERS_PER_DEVICE];
-    uint8_t transfer_count;
-    uint8_t interfaces[MAX_INTERFACES_PER_DEVICE];
-    uint8_t interface_count;
-    EndpointInfo endpoint_info[MAX_ENDPOINTS];
-    hid_keyboard_report_t last_kb_report;
-    uint8_t interval;
-    bool ready;
-    unsigned long last_poll;
-
-    /* Parsed HID mouse layout (X/Y/Wheel/Buttons bit map). Populated
-     * asynchronously by handleNewDevice -> kickHidReportRead(). Stays
-     * { .valid = false } if parsing failed or the device isn't a
-     * mouse, in which case processMouseReport() falls back to its
-     * heuristic byte-layout decoder. */
-    HidMouseLayout mouse_layout;
-};
+#include "input_usb_types.h"
 
 // Forward declarations
 class MultiDeviceUsbHost;
 static MultiDeviceUsbHost *usbHost = NULL;
+static uint8_t mergedUsbMouseButtons();
+static void releaseDisconnectedMouseButtons();
 
 // ============================================================================
 // Keyboard Input Processing
@@ -606,64 +593,36 @@ static void pollTab5Keyboard(void)
 // Mouse Input Processing (with Mac OS 8 right-click -> Control+Click)
 // ============================================================================
 
-static void processMouseReport(const usb_transfer_t *transfer, EndpointInfo *ep_info,
-                               const HidMouseLayout *layout) {
+static void processMouseReport(const usb_transfer_t *transfer, EndpointInfo *ep_info) {
     if (ep_info->bInterfaceClass != USB_CLASS_HID) return;
     if (ep_info->bInterfaceProtocol == HID_ITF_PROTOCOL_KEYBOARD) return;
-    if (transfer->actual_num_bytes < 3) return;
-
-    mouse_connected = true;
 
     uint8_t buttons = 0;
     int16_t dx = 0;
     int16_t dy = 0;
     int16_t dw = 0;
 
-    /* Preferred path: parsed HID report descriptor. The parser ran
-     * asynchronously after device enumeration; if it succeeded, the
-     * layout knows exactly where X/Y/Wheel/Buttons live regardless of
-     * whether the device is in boot or report protocol or uses a
-     * Report ID prefix. The heuristic decoder below stays as a
-     * fallback for vintage boot-mode mice and devices whose report
-     * descriptor is unusual enough that the parser bails. */
-    bool layout_decoded = false;
-    if (layout != NULL && layout->valid) {
-        layout_decoded = HidDecodeMouseReport(transfer->data_buffer,
-                                              transfer->actual_num_bytes,
-                                              layout, &buttons, &dx, &dy, &dw);
-        // A different Report ID or a truncated packet is not a boot-protocol
-        // mouse report. Guessing its layout causes cursor jumps/button releases.
-        if (!layout_decoded) return;
-    }
+    // Decode using this endpoint's interface descriptor. No byte-layout
+    // guessing while enumeration is pending or for vendor-only interfaces.
+    bool decoded = ep_info->mouse.decode(transfer->data_buffer,
+        transfer->actual_num_bytes,&buttons,&dx,&dy,&dw);
+    UsbMouseTrace sample = {};
+    sample.ms=millis(); sample.endpoint=transfer->bEndpointAddress;
+    sample.interface_number=ep_info->interface_number;
+    sample.size=(uint8_t)transfer->actual_num_bytes; sample.accepted=decoded;
+    sample.buttons=buttons; sample.dx=dx; sample.dy=dy; sample.wheel=dw;
+    memcpy(sample.raw,transfer->data_buffer,
+           transfer->actual_num_bytes < sizeof(sample.raw) ? transfer->actual_num_bytes : sizeof(sample.raw));
+    portENTER_CRITICAL(&usb_trace_lock);
+    sample.sequence=++usb_trace_sequence;
+    usb_trace[(sample.sequence-1)%32]=sample;
+    portEXIT_CRITICAL(&usb_trace_lock);
+    if (!decoded) { __atomic_add_fetch(&usb_rejected_reports,1,__ATOMIC_RELAXED); return; }
+    ep_info->mouse.buttons=buttons;
+    buttons=mergedUsbMouseButtons();
+    mouse_connected = true;
 
-    if (!layout_decoded) {
-        // Logitech MX Master and similar mice: Report ID 0x02, 16-bit movement
-        if (transfer->actual_num_bytes >= 7 && transfer->data_buffer[0] == 0x02) {
-            buttons = transfer->data_buffer[1];
-            dx = (int16_t)(transfer->data_buffer[3] | (transfer->data_buffer[4] << 8));
-            dy = (int16_t)(transfer->data_buffer[5] | (transfer->data_buffer[6] << 8));
-        } else if (transfer->actual_num_bytes >= 4 && transfer->data_buffer[0] <= 0x07) {
-            // Standard boot protocol: buttons, X, Y, wheel
-            buttons = transfer->data_buffer[0];
-            dx = (int8_t)transfer->data_buffer[1];
-            dy = (int8_t)transfer->data_buffer[2];
-            if (transfer->actual_num_bytes >= 4) {
-                dw = (int8_t)transfer->data_buffer[3];
-            }
-        } else if (transfer->actual_num_bytes >= 5) {
-            // Report ID format: ReportID, buttons, X, Y
-            buttons = transfer->data_buffer[1];
-            dx = (int8_t)transfer->data_buffer[2];
-            dy = (int8_t)transfer->data_buffer[3];
-        } else {
-            // Fallback: assume boot protocol
-            buttons = transfer->data_buffer[0];
-            dx = (int8_t)transfer->data_buffer[1];
-            dy = (int8_t)transfer->data_buffer[2];
-        }
-    }
-
-    ++usb_mouse_reports;
+    __atomic_add_fetch(&usb_mouse_reports,1,__ATOMIC_RELAXED);
     if (input_preboot) {
         preboot_mouse_x = constrain(preboot_mouse_x + dx, 0, mac_screen_width - 1);
         preboot_mouse_y = constrain(preboot_mouse_y + dy, 0, mac_screen_height - 1);
@@ -748,520 +707,31 @@ static void processMouseReport(const usb_transfer_t *transfer, EndpointInfo *ep_
 // MultiDeviceUsbHost - USB Host with hub and multi-device support
 // ============================================================================
 
-class MultiDeviceUsbHost {
-public:
-    usb_host_client_handle_t clientHandle;
-    UsbDeviceSlot devices[MAX_USB_DEVICES];
-    uint32_t eventFlags;
+#include "input_usb_host.inc"
 
-    MultiDeviceUsbHost() {
-        clientHandle = NULL;
-        eventFlags = 0;
-        for (int i = 0; i < MAX_USB_DEVICES; i++) {
-            memset(&devices[i], 0, sizeof(UsbDeviceSlot));
+static uint8_t mergedUsbMouseButtons()
+{
+    uint8_t buttons=0;
+    if (usbHost) for (auto &dev:usbHost->devices) if (dev.active && !dev.disconnecting)
+        for (auto &ep:dev.endpoint_info) buttons |= ep.mouse.buttons;
+    return buttons;
+}
+
+static void releaseDisconnectedMouseButtons()
+{
+    uint8_t buttons=mergedUsbMouseButtons();
+    if (input_preboot) {
+        BootGUI_UsbPointer(mouse_connected ? preboot_mouse_x : -1,
+                           mouse_connected ? preboot_mouse_y : -1,(buttons&1)!=0);
+    } else {
+        if ((usb_mouse_buttons&3) && !(buttons&3)) routeMouseButton(0,false);
+        if ((usb_mouse_buttons&4) && !(buttons&4)) routeMouseButton(2,false);
+        if (!(buttons&2) && right_click_ctrl_injected) {
+            releaseAdbKey(0x36);right_click_ctrl_injected=false;
         }
     }
-
-    void begin() {
-        const usb_host_config_t host_config = {
-            .skip_phy_setup = false,
-#if defined(BOARD_AMAC_P4)
-            .root_port_unpowered = true,
-#endif
-            .intr_flags = ESP_INTR_FLAG_LEVEL1,
-        };
-        esp_err_t err = usb_host_install(&host_config);
-        if (err != ESP_OK) {
-            Serial.printf("[USB] usb_host_install() err=0x%x\n", err);
-            return;
-        }
-#if defined(BOARD_AMAC_P4)
-        // IDF 5.5.4 has no transaction translator for a FS/LS HID behind an
-        // HS hub. Keep the wired HS controller/PHY, but force the root hub
-        // to enumerate at FS. HW(0) is HS on this P4; HW(1) is USB2/FS.
-        usb_dwc_ll_hcfg_set_fsls_supp_only(USB_DWC_LL_GET_HW(0));
-        err = usb_host_lib_set_root_port_power(true);
-        if (err != ESP_OK) {
-            Serial.printf("[USB] Root-port power failed: 0x%x\n", err);
-            return;
-        }
-        Serial.println("[USB] Hub compatibility: full/low-speed root enabled");
-#endif
-
-        const usb_host_client_config_t client_config = {
-            .is_synchronous = false,
-            .max_num_event_msg = 10,
-            .async = {
-                .client_event_callback = clientEventCallback,
-                .callback_arg = this,
-            }
-        };
-        err = usb_host_client_register(&client_config, &clientHandle);
-        if (err != ESP_OK) {
-            Serial.printf("[USB] usb_host_client_register() err=0x%x\n", err);
-        }
-    }
-
-    void task() {
-        if (!clientHandle) return;
-        esp_err_t err = usb_host_lib_handle_events(1, &eventFlags);
-        (void)err;
-
-        err = usb_host_client_handle_events(clientHandle, 1);
-        (void)err;
-
-        unsigned long now = millis();
-        for (int d = 0; d < MAX_USB_DEVICES; d++) {
-            UsbDeviceSlot *dev = &devices[d];
-            if (!dev->active || !dev->ready) continue;
-            if ((now - dev->last_poll) < dev->interval) continue;
-            dev->last_poll = now;
-
-            for (int t = 0; t < dev->transfer_count; t++) {
-                if (dev->transfers[t] == NULL) continue;
-                usb_host_transfer_submit(dev->transfers[t]);
-            }
-        }
-    }
-
-    int findFreeSlot() {
-        for (int i = 0; i < MAX_USB_DEVICES; i++) {
-            if (!devices[i].active) return i;
-        }
-        return -1;
-    }
-
-    int findDeviceByHandle(usb_device_handle_t handle) {
-        for (int i = 0; i < MAX_USB_DEVICES; i++) {
-            if (devices[i].active && devices[i].handle == handle) return i;
-        }
-        return -1;
-    }
-
-    int findKeyboardDevice() {
-        for (int i = 0; i < MAX_USB_DEVICES; i++) {
-            if (devices[i].active && devices[i].has_keyboard) return i;
-        }
-        return -1;
-    }
-
-    bool hasAnyKeyboard() {
-        return findKeyboardDevice() >= 0;
-    }
-
-    void setKeyboardLEDs(uint8_t leds) {
-        int dev_idx = findKeyboardDevice();
-        if (dev_idx < 0) return;
-        UsbDeviceSlot *dev = &devices[dev_idx];
-        if (!dev->ready || dev->handle == NULL) return;
-
-        usb_transfer_t *transfer;
-        esp_err_t err = usb_host_transfer_alloc(8 + 1, 0, &transfer);
-        if (err != ESP_OK) return;
-
-        transfer->num_bytes = 8 + 1;
-        transfer->data_buffer[0] = 0x21;  // bmRequestType (Host->Device, Class, Interface)
-        transfer->data_buffer[1] = 0x09;  // bRequest (SET_REPORT)
-        transfer->data_buffer[2] = 0x00;  // wValue low (Report ID 0)
-        transfer->data_buffer[3] = 0x02;  // wValue high (Output Report)
-        transfer->data_buffer[4] = 0x00;  // wIndex low (Interface 0)
-        transfer->data_buffer[5] = 0x00;  // wIndex high
-        transfer->data_buffer[6] = 0x01;  // wLength low
-        transfer->data_buffer[7] = 0x00;  // wLength high
-        transfer->data_buffer[8] = leds;
-
-        transfer->device_handle = dev->handle;
-        transfer->bEndpointAddress = 0x00;
-        transfer->callback = NULL;
-        transfer->context = NULL;
-
-        err = usb_host_transfer_submit_control(clientHandle, transfer);
-        if (err != ESP_OK) {
-            Serial.printf("[USB] LED control transfer failed: 0x%x\n", err);
-        }
-        usb_host_transfer_free(transfer);
-    }
-
-    void releaseAllKeyboardClaims() {
-        hid_keyboard_report_t empty = {};
-        for (int i = 0; i < MAX_USB_DEVICES; ++i) {
-            UsbDeviceSlot *dev = &devices[i];
-            if (!dev->active || !dev->has_keyboard) continue;
-            processKeyboardReport(&empty, &dev->last_kb_report, true);
-            dev->last_kb_report = {};
-        }
-    }
-
-private:
-    static void clientEventCallback(const usb_host_client_event_msg_t *eventMsg, void *arg) {
-        MultiDeviceUsbHost *host = (MultiDeviceUsbHost *)arg;
-
-        switch (eventMsg->event) {
-        case USB_HOST_CLIENT_EVENT_NEW_DEV:
-            host->handleNewDevice(eventMsg->new_dev.address);
-            break;
-        case USB_HOST_CLIENT_EVENT_DEV_GONE:
-            host->handleDeviceGone(eventMsg->dev_gone.dev_hdl);
-            break;
-        default:
-            break;
-        }
-    }
-
-    void handleNewDevice(uint8_t dev_addr) {
-        int slot = findFreeSlot();
-        if (slot < 0) {
-            Serial.println("[USB] No free device slots");
-            return;
-        }
-
-        UsbDeviceSlot *dev = &devices[slot];
-        memset(dev, 0, sizeof(UsbDeviceSlot));
-
-        esp_err_t err = usb_host_device_open(clientHandle, dev_addr, &dev->handle);
-        if (err != ESP_OK) {
-            Serial.printf("[USB] device_open(%d) err=0x%x\n", dev_addr, err);
-            return;
-        }
-
-        dev->active = true;
-
-        usb_device_info_t dev_info;
-        if (usb_host_device_info(dev->handle, &dev_info) == ESP_OK) {
-            Serial.printf("[USB] Device %d connected (addr=%d, speed=%d)\n",
-                          slot, dev_addr, dev_info.speed);
-        }
-
-        const usb_config_desc_t *config_desc;
-        err = usb_host_get_active_config_descriptor(dev->handle, &config_desc);
-        if (err != ESP_OK) {
-            Serial.printf("[USB] get_config_desc err=0x%x\n", err);
-            return;
-        }
-
-        enumerateDevice(slot, config_desc);
-
-        if (dev->has_keyboard) {
-            Serial.printf("[USB] Device %d: keyboard detected\n", slot);
-            usb_keyboard_connected = true;
-        }
-        if (dev->has_mouse) {
-            Serial.printf("[USB] Device %d: mouse detected\n", slot);
-            mouse_connected = true;
-        }
-    }
-
-    void handleDeviceGone(usb_device_handle_t dev_hdl) {
-        int slot = findDeviceByHandle(dev_hdl);
-        if (slot < 0) {
-            usb_host_device_close(clientHandle, dev_hdl);
-            return;
-        }
-
-        UsbDeviceSlot *dev = &devices[slot];
-        bool was_keyboard = dev->has_keyboard;
-        bool was_mouse = dev->has_mouse;
-
-        Serial.printf("[USB] Device %d disconnected\n", slot);
-
-        if (was_keyboard) {
-            hid_keyboard_report_t empty = {};
-            processKeyboardReport(&empty, &dev->last_kb_report, true);
-        }
-
-        for (int i = 0; i < dev->transfer_count; i++) {
-            if (dev->transfers[i] != NULL) {
-                usb_host_endpoint_clear(dev->handle, dev->transfers[i]->bEndpointAddress);
-                usb_host_transfer_free(dev->transfers[i]);
-                dev->transfers[i] = NULL;
-            }
-        }
-
-        for (int i = 0; i < dev->interface_count; i++) {
-            usb_host_interface_release(clientHandle, dev->handle, dev->interfaces[i]);
-        }
-
-        usb_host_device_close(clientHandle, dev->handle);
-
-        memset(dev, 0, sizeof(UsbDeviceSlot));
-
-        // Only reset connection flags if no other device provides the capability
-        if (was_keyboard) {
-            usb_keyboard_connected = false;
-            for (int i = 0; i < MAX_USB_DEVICES; i++) {
-                if (devices[i].active && devices[i].has_keyboard) {
-                    usb_keyboard_connected = true;
-                    break;
-                }
-            }
-        }
-        if (was_mouse) {
-            mouse_connected = false;
-            for (int i = 0; i < MAX_USB_DEVICES; i++) {
-                if (devices[i].active && devices[i].has_mouse) {
-                    mouse_connected = true;
-                    break;
-                }
-            }
-            if (!mouse_connected) {
-                usb_mouse_buttons = 0;
-                if (right_click_ctrl_injected) {
-                    releaseAdbKey(0x36);
-                    right_click_ctrl_injected = false;
-                }
-            }
-        }
-    }
-
-    void enumerateDevice(int slot, const usb_config_desc_t *config_desc) {
-        UsbDeviceSlot *dev = &devices[slot];
-        const uint8_t *p = &config_desc->val[0];
-        uint8_t bLength;
-
-        uint8_t cur_intf_class = 0;
-        uint8_t cur_intf_subclass = 0;
-        uint8_t cur_intf_protocol = 0;
-        uint8_t cur_intf_number = 0;
-        bool cur_intf_claimed = false;
-        bool cur_intf_is_mouse = false;
-
-        /* If we find a HID class descriptor for the mouse interface,
-         * remember its number and the report-descriptor length so we
-         * can fetch it after enumeration completes. */
-        bool     mouse_hid_found  = false;
-        uint8_t  mouse_intf_num   = 0;
-        uint16_t mouse_rdesc_len  = 0;
-
-        for (int i = 0; i < config_desc->wTotalLength; i += bLength, p += bLength) {
-            bLength = *p;
-            if (bLength == 0 || (i + bLength) > config_desc->wTotalLength) break;
-
-            uint8_t bDescriptorType = *(p + 1);
-
-            if (bDescriptorType == USB_INTERFACE_DESC) {
-                const usb_intf_desc_t *intf = (const usb_intf_desc_t *)p;
-                cur_intf_class = intf->bInterfaceClass;
-                cur_intf_subclass = intf->bInterfaceSubClass;
-                cur_intf_protocol = intf->bInterfaceProtocol;
-                cur_intf_number = intf->bInterfaceNumber;
-                cur_intf_claimed = false;
-                cur_intf_is_mouse = false;
-
-                if (cur_intf_class == USB_CLASS_HID) {
-                    esp_err_t err = usb_host_interface_claim(
-                        clientHandle, dev->handle,
-                        intf->bInterfaceNumber, intf->bAlternateSetting);
-                    if (err == ESP_OK) {
-                        cur_intf_claimed = true;
-                        if (dev->interface_count < MAX_INTERFACES_PER_DEVICE) {
-                            dev->interfaces[dev->interface_count++] = intf->bInterfaceNumber;
-                        }
-                        if (cur_intf_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
-                            dev->has_keyboard = true;
-                        } else {
-                            dev->has_mouse = true;
-                            cur_intf_is_mouse = true;
-                        }
-                    }
-                }
-
-            } else if (bDescriptorType == USB_HID_DESC_TYPE && cur_intf_claimed) {
-                /* HID class descriptor: 9 bytes minimum.
-                 *   bLength, bDescriptorType, bcdHID(2), bCountryCode,
-                 *   bNumDescriptors, bDescriptorType_subord(=0x22 Report),
-                 *   wDescriptorLength(2)
-                 * We only consume the first subordinate descriptor entry,
-                 * which is the standard layout for ~all mice. */
-                if (bLength >= 9 && cur_intf_is_mouse && !mouse_hid_found) {
-                    uint8_t  sub_type = p[6];
-                    uint16_t sub_len  = (uint16_t)p[7] | ((uint16_t)p[8] << 8);
-                    if (sub_type == USB_HID_REPORT_DESC_TYPE && sub_len > 0 &&
-                        sub_len <= HID_REPORT_DESC_MAX_BYTES) {
-                        mouse_hid_found = true;
-                        mouse_intf_num  = cur_intf_number;
-                        mouse_rdesc_len = sub_len;
-                    }
-                }
-
-            } else if (bDescriptorType == USB_ENDPOINT_DESC && cur_intf_claimed) {
-                const usb_ep_desc_t *ep_desc = (const usb_ep_desc_t *)p;
-
-                if ((ep_desc->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK)
-                    != USB_BM_ATTRIBUTES_XFER_INT)
-                    continue;
-                if (!(ep_desc->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK))
-                    continue;
-
-                uint8_t ep_num = USB_EP_DESC_GET_EP_NUM(ep_desc);
-                if (ep_num < MAX_ENDPOINTS) {
-                    dev->endpoint_info[ep_num].bInterfaceClass = cur_intf_class;
-                    dev->endpoint_info[ep_num].bInterfaceSubClass = cur_intf_subclass;
-                    dev->endpoint_info[ep_num].bInterfaceProtocol = cur_intf_protocol;
-                }
-
-                if (dev->transfer_count < MAX_TRANSFERS_PER_DEVICE) {
-                    usb_transfer_t *xfer = NULL;
-                    esp_err_t err = usb_host_transfer_alloc(
-                        ep_desc->wMaxPacketSize + 1, 0, &xfer);
-                    if (err == ESP_OK && xfer != NULL) {
-                        xfer->device_handle = dev->handle;
-                        xfer->bEndpointAddress = ep_desc->bEndpointAddress;
-                        xfer->callback = transferCallback;
-                        xfer->context = (void *)(uintptr_t)slot;
-                        xfer->num_bytes = ep_desc->wMaxPacketSize;
-                        dev->transfers[dev->transfer_count++] = xfer;
-                        dev->interval = ep_desc->bInterval;
-                        dev->ready = true;
-                    }
-                }
-            }
-        }
-
-        /* If we found a mouse HID interface and recorded its report-
-         * descriptor length, fire off a control transfer to fetch the
-         * descriptor. The completion callback will parse it into
-         * dev->mouse_layout. Until that lands, processMouseReport()
-         * uses its existing heuristic decoder. */
-        if (mouse_hid_found && mouse_rdesc_len > 0) {
-            kickHidReportRead(slot, mouse_intf_num, mouse_rdesc_len);
-        }
-    }
-
-    /*
-     * Issue GET_DESCRIPTOR(REPORT) on the device's default control
-     * endpoint. The transfer buffer has 8 bytes of setup packet
-     * followed by the requested wLength of data; on completion the
-     * callback parses bytes [8 .. 8+wLength) as the report descriptor.
-     */
-    void kickHidReportRead(int slot, uint8_t intf_num, uint16_t length) {
-        UsbDeviceSlot *dev = &devices[slot];
-        if (dev->handle == NULL) return;
-
-        usb_transfer_t *xfer = NULL;
-        esp_err_t err = usb_host_transfer_alloc(8 + length, 0, &xfer);
-        if (err != ESP_OK || xfer == NULL) {
-            Serial.printf("[USB] HID descriptor alloc failed: 0x%x\n", err);
-            return;
-        }
-
-        xfer->num_bytes = 8 + length;
-        xfer->data_buffer[0] = 0x81;  /* bmRequestType: D->H, Standard, Interface */
-        xfer->data_buffer[1] = 0x06;  /* GET_DESCRIPTOR */
-        xfer->data_buffer[2] = 0x00;  /* wValue low: descriptor index 0 */
-        xfer->data_buffer[3] = USB_HID_REPORT_DESC_TYPE;  /* wValue high: Report */
-        xfer->data_buffer[4] = intf_num;
-        xfer->data_buffer[5] = 0x00;
-        xfer->data_buffer[6] = (uint8_t)(length & 0xFF);
-        xfer->data_buffer[7] = (uint8_t)((length >> 8) & 0xFF);
-
-        xfer->device_handle = dev->handle;
-        xfer->bEndpointAddress = 0x00;  /* default control pipe */
-        xfer->callback = hidReportDescCallback;
-        /* Pack slot index into the context so the callback knows which
-         * device this came from. */
-        xfer->context = (void *)(uintptr_t)slot;
-
-        err = usb_host_transfer_submit_control(clientHandle, xfer);
-        if (err != ESP_OK) {
-            Serial.printf("[USB] HID descriptor submit failed: 0x%x\n", err);
-            usb_host_transfer_free(xfer);
-        }
-    }
-
-    static void hidReportDescCallback(usb_transfer_t *transfer) {
-        if (!usbHost) {
-            usb_host_transfer_free(transfer);
-            return;
-        }
-        uint8_t slot = (uint8_t)(uintptr_t)transfer->context;
-        if (slot >= MAX_USB_DEVICES) {
-            usb_host_transfer_free(transfer);
-            return;
-        }
-        UsbDeviceSlot *dev = &usbHost->devices[slot];
-
-        do {
-            if (transfer->status != USB_TRANSFER_STATUS_COMPLETED) {
-                Serial.printf("[USB] HID descriptor transfer status=%d\n",
-                              transfer->status);
-                break;
-            }
-            if (transfer->actual_num_bytes <= 8) {
-                Serial.println("[USB] HID descriptor: no payload");
-                break;
-            }
-            if (!dev->active) {
-                break;
-            }
-
-            const uint8_t *desc = transfer->data_buffer + 8;
-            size_t desc_len = transfer->actual_num_bytes - 8;
-
-            HidMouseLayout layout;
-            bool ok = HidParseMouseDescriptor(desc, desc_len, &layout);
-            if (ok) {
-                dev->mouse_layout = layout;
-                Serial.printf("[HID] parsed report desc: btns=%d x=%d%c y=%d%c "
-                              "wheel=%d%c report_id=%u bytes=%u\n",
-                              layout.button_count,
-                              layout.x_size_bits, layout.x_signed ? 's' : 'u',
-                              layout.y_size_bits, layout.y_signed ? 's' : 'u',
-                              layout.has_wheel ? layout.wheel_size_bits : 0,
-                              (layout.has_wheel && layout.wheel_signed) ? 's' : 'u',
-                              layout.report_id,
-                              layout.report_bytes);
-            } else {
-                Serial.println("[HID] report desc parse failed - falling back to heuristics");
-            }
-        } while (0);
-
-        usb_host_transfer_free(transfer);
-    }
-
-    static void transferCallback(usb_transfer_t *transfer) {
-        if (!usbHost) return;
-        if (transfer->status != USB_TRANSFER_STATUS_COMPLETED) return;
-        if (transfer->actual_num_bytes == 0) return;
-
-        uint8_t dev_idx = (uint8_t)(uintptr_t)transfer->context;
-        if (dev_idx >= MAX_USB_DEVICES) return;
-
-        UsbDeviceSlot *dev = &usbHost->devices[dev_idx];
-        if (!dev->active) return;
-
-        uint8_t ep_num = transfer->bEndpointAddress & 0x0F;
-        if (ep_num >= MAX_ENDPOINTS) return;
-
-        EndpointInfo *ep_info = &dev->endpoint_info[ep_num];
-
-        // Boot keyboard: HID class, Boot subclass, Keyboard protocol
-        if (ep_info->bInterfaceClass == USB_CLASS_HID &&
-            ep_info->bInterfaceSubClass == HID_SUBCLASS_BOOT &&
-            ep_info->bInterfaceProtocol == HID_ITF_PROTOCOL_KEYBOARD &&
-            transfer->actual_num_bytes >= 8) {
-
-            hid_keyboard_report_t report;
-            report.modifier = transfer->data_buffer[0];
-            report.reserved = transfer->data_buffer[1];
-            report.keycode[0] = transfer->data_buffer[2];
-            report.keycode[1] = transfer->data_buffer[3];
-            report.keycode[2] = transfer->data_buffer[4];
-            report.keycode[3] = transfer->data_buffer[5];
-            report.keycode[4] = transfer->data_buffer[6];
-            report.keycode[5] = transfer->data_buffer[7];
-
-            if (keyboard_enabled &&
-                memcmp(&report, &dev->last_kb_report, sizeof(report)) != 0) {
-                processKeyboardReport(&report, &dev->last_kb_report);
-                memcpy(&dev->last_kb_report, &report, sizeof(report));
-            }
-
-        } else if (ep_info->bInterfaceClass == USB_CLASS_HID &&
-                   ep_info->bInterfaceProtocol != HID_ITF_PROTOCOL_KEYBOARD) {
-            processMouseReport(transfer, ep_info, &dev->mouse_layout);
-        }
-    }
-};
+    usb_mouse_buttons=buttons;
+}
 
 // ============================================================================
 // Touch Input Handling
@@ -1329,36 +799,28 @@ static void inputTask(void *param)
     (void)param;
     Serial.println("[INPUT] Input task started on Core 0");
     
-    const TickType_t poll_interval = pdMS_TO_TICKS(INPUT_POLL_INTERVAL_MS);
-    uint8_t usb_poll_divider = USB_POLL_DIV_ACTIVE;
-    uint8_t usb_poll_counter = 0;
+    const TickType_t poll_interval = pdMS_TO_TICKS(INPUT_POLL_INTERVAL_MS) < 1 ?
+        1 : pdMS_TO_TICKS(INPUT_POLL_INTERVAL_MS);
+    uint32_t next_board_poll = millis();
     
     while (input_task_running) {
-        Board_Update();
-        if (!input_preboot) {
-        BoardPower_Poll();
+        uint32_t now = millis();
+        if ((int32_t)(now-next_board_poll)>=0) {
+            next_board_poll=now+BOARD_INPUT_INTERVAL_MS;
+            Board_Update();
+            if (!input_preboot) {
+                BoardPower_Poll();
 #if defined(BOARD_AMAC_P4)
-        LowBatteryPoll();
+                LowBatteryPoll();
 #endif
-        PowerManagerIdlePoll();
-        
-        processTouchInput();
-        pollTab5Keyboard();
+                PowerManagerIdlePoll();
+                processTouchInput();
+                pollTab5Keyboard();
+            }
         }
         
         if (usbHost != NULL) {
-            bool usb_active = usb_keyboard_connected || mouse_connected;
-            uint8_t target_divider = usb_active ? USB_POLL_DIV_ACTIVE : USB_POLL_DIV_IDLE;
-            if (target_divider != usb_poll_divider) {
-                usb_poll_divider = target_divider;
-                usb_poll_counter = 0;
-            }
-
-            usb_poll_counter++;
-            if (usb_poll_counter >= usb_poll_divider) {
-                usb_poll_counter = 0;
-                usbHost->task();
-            }
+            usbHost->task();
         }
         
         if (!input_preboot) updateKeyboardLEDs();
@@ -1482,7 +944,41 @@ bool InputInitPreboot(void)
     return true;
 }
 
-uint32_t InputMouseReportCount(void) { return usb_mouse_reports; }
+uint32_t InputMouseReportCount(void) { return __atomic_load_n(&usb_mouse_reports,__ATOMIC_RELAXED); }
+void InputUsbDescribe(char *out,size_t capacity)
+{
+    snprintf(out,capacity,"mouse=%u keyboard=%u reports=%lu rejected=%lu errors=%lu service_us=%lu poll_ms=%u",
+        InputIsMouseConnected(),InputIsKeyboardConnected(),(unsigned long)InputMouseReportCount(),
+        (unsigned long)__atomic_load_n(&usb_rejected_reports,__ATOMIC_RELAXED),
+        (unsigned long)__atomic_load_n(&usb_transfer_errors,__ATOMIC_RELAXED),
+        (unsigned long)__atomic_load_n(&usb_max_service_gap_us,__ATOMIC_RELAXED),INPUT_POLL_INTERVAL_MS);
+}
+bool InputUsbTrace(unsigned age,char *out,size_t capacity)
+{
+    UsbMouseTrace row;
+    portENTER_CRITICAL(&usb_trace_lock);
+    uint32_t count=usb_trace_sequence;
+    bool valid=age<32 && age<count;
+    if (valid) row=usb_trace[(count-1-age)%32];
+    portEXIT_CRITICAL(&usb_trace_lock);
+    if (!valid) return false;
+    char encoded[33];const char *digits="0123456789abcdef";
+    unsigned bytes=row.size<16?row.size:16;
+    for(unsigned i=0;i<bytes;++i){encoded[2*i]=digits[row.raw[i]>>4];encoded[2*i+1]=digits[row.raw[i]&15];}
+    encoded[2*bytes]=0;
+    snprintf(out,capacity,"seq=%lu ms=%lu interface=%u ep=%u bytes=%u accepted=%u buttons=%u dx=%d dy=%d wheel=%d raw=%s",
+        (unsigned long)row.sequence,(unsigned long)row.ms,row.interface_number,row.endpoint,row.size,
+        row.accepted,row.buttons,row.dx,row.dy,row.wheel,encoded);
+    return true;
+}
+void InputUsbResetDiagnostics(void)
+{
+    __atomic_store_n(&usb_mouse_reports,0,__ATOMIC_RELAXED);
+    __atomic_store_n(&usb_rejected_reports,0,__ATOMIC_RELAXED);
+    __atomic_store_n(&usb_transfer_errors,0,__ATOMIC_RELAXED);
+    __atomic_store_n(&usb_max_service_gap_us,0,__ATOMIC_RELAXED);
+    portENTER_CRITICAL(&usb_trace_lock);usb_trace_sequence=0;portEXIT_CRITICAL(&usb_trace_lock);
+}
 
 void InputExit(void)
 {
