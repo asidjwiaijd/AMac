@@ -1,5 +1,30 @@
 # aMac 验证记录
 
+## 2026-11-11：System 7 用户壁纸
+
+在实板 Mac 内安装 Décor 3.0.4（Custom → Universal Install），将用户提供的
+`E:/AMac/wallpaper.png` 转为同尺寸 256 色 GIF，复制到
+`MicroMac7:Wallpaper.gif` 并设为桌面背景。源图及 GIF 已保存至
+`guest/wallpaper/`，文件哈希、第三方工具来源和安装说明见该目录 README。
+
+安装盘 `Wallpaper.iso` 819200 字节，经 USB2 上传及完整 CRC32 校验通过。
+完成后正常关机、清除临时 CD-ROM 配置，再启动 Mac，壁纸自动恢复，
+For You 与 Start Here 图标保留。所有可读取启动选项与安装前副本逐项一致。
+本次只改变实板 Mac 系统盘内的程序、图片与偏好设置，固件仍为下方 0.5.1；
+没有替换本地电脑预览所用的另一份系统盘。
+
+首次 Easy Install 的主程序资源表不一致，报告 `-199`。覆盖做 Universal
+Install 仅更新 Daemon 后仍未恢复；将新装的主程序移到废纸篓，重新完整
+Universal Install 后正常。保留废纸篓中的副本，未清空用户废纸篓。
+
+证据位于 `artifacts/wallpaper/2026-11-11/`：
+
+- `prepared.json`、`conversion-check.json`、`media-transfer.json`
+- `original-settings.json`、`restored-settings.json`
+- `decor-header.bin`、`decor-map.bin`、`daemon-header.bin`、`daemon-map.bin`
+- `clean-universal-result.png`、`decor-settings.png`
+- `wallpaper-desktop-color.png`、`wallpaper-after-restart.png`
+
 ## 0.5.1：鼠标延迟与乱跳修复（当前版本）
 
 2026-11-11，固件 `5.4-beta.1+amac.0.5.1`。两种芯片镜像均来自干净源码
