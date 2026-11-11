@@ -1,5 +1,60 @@
 # aMac 验证记录
 
+## 0.5.2：C5 Wi-Fi 恢复与错误处理（当前版本）
+
+2026-11-11，P4 固件 `5.4-beta.1+amac.0.5.2`。两种镜像均由干净源码提交
+`42b6dce0818016a64d839fdc228b0f54db41fcd3` 构建，JSON 中
+`source_dirty=false`。后续文档提交不改变固件；版本标签为
+`amac-v0.5.2-wifi-recovery`。
+
+| 环境 | 构建 | 最低芯片 revision | 合并镜像字节数 |
+| --- | --- | --- | ---: |
+| `amac_p4_rev3` | SUCCESS，22.800 秒 | 3.1 | 1956432 |
+| `amac_p4_es` | SUCCESS，22.162 秒 | 0.1 | 1953664 |
+
+```text
+aMac-P4C5-HD20034-Rev3.bin
+788d58ddb783412adaf7abb87a31166986a91db3bc8a06d0f2266f841a3e2992
+
+aMac-P4C5-HD20034-ES.bin
+c53051f181d23d7b13044b6f0b79e77e3087e96941397bf65fd53fc11a8f7e0d
+```
+
+合并偏移、P4 镜像头、组件及整包 SHA-256、应用版本和来源均已核对。
+完整 90 项回归通过，118.339 秒，支持的 C++ 检查开启 ASan/UBSan。
+新增失败无线驱动测试直接提取生产初始化/扫描代码，验证初始化失败后
+停止扫描、重试可恢复、成功后不重复初始化、取消关联及扫描失败可重试。
+设置页同时区分模块启动失败和扫描失败，并为扫描/关联设置等待上限。
+
+根因在 C5 启动区：P4 的 SDIO 初始化超时，C5 UART 反复报告无效的
+`0xffffffff` 启动头。完整备份证实 C5 前 64 KiB 为空。已为 C5 v1.2 安装
+厂商 ESP-Hosted 2.12.9 合并包并经独立 ROM 验证，保存了经目标摘要校验的
+4 MiB 全片备份。来源、哈希和具体布局见 [Wi-Fi 修复记录](AMAC_WIFI.md)。
+
+安装 C5 后，原 P4 0.5.1 即恢复扫描；用户完成连接后，电脑通过设备 Wi-Fi
+HTTP 通道收到 200 响应及 53965 字节画面。随后从 Finder 正常关机，通过
+USB2 COM12 只更新 P4 应用 `0x10000`；保存匹配当前 Flash 的 0.5.1 回退
+副本，写入与独立 ROM 校验通过。新应用 SHA-256：
+`a4caf947827aad890dca00798536d9400500626691f5aef622a7c50208714c30`。
+更新记录：`artifacts/updates/2026-11-11_142806_713158/result.json`。
+
+0.5.2 启动后，C5 日志确认自动关联 2.4 GHz channel 1 / WPA2，P4 获得
+网络地址并进入 Mac。电脑经 Wi-Fi 下载 53992 字节、CRC 检查并解码为
+480×360 画面；壁纸、For You 和 Start Here 均保留。未重传或替换系统盘。
+重置输入诊断后连续进行四次 Wi-Fi 画面下载，USB 传输错误为 0，最大
+服务间隔 2241 µs；未作为鼠标输入的厂商状态包继续正常忽略。
+本轮未测试 5 GHz、BLE 或 Mac 客户机浏览器。
+
+证据：
+
+- `artifacts/build/amac-0.5.2-complete-tests-final.log`
+- `artifacts/build/amac-p4-*-wifi-recovery.log`
+- `artifacts/wifi/2026-11-11/c5-startup.log`、`scan-completed.png`
+- `c5-repair-141434/result.json`、`previous-c5-flash.bin`
+- `p4-release-verification.json`、`p4-update.log`
+- `c5-final-restart.log`、`final-connection.json`、`final-wifi-desktop.png`
+- `wifi-and-usb-runtime.json`
+
 ## 2026-11-11：System 7 用户壁纸
 
 在实板 Mac 内安装 Décor 3.0.4（Custom → Universal Install），将用户提供的
@@ -25,7 +80,7 @@ Universal Install 后正常。保留废纸篓中的副本，未清空用户废�
 - `clean-universal-result.png`、`decor-settings.png`
 - `wallpaper-desktop-color.png`、`wallpaper-after-restart.png`
 
-## 0.5.1：鼠标延迟与乱跳修复（当前版本）
+## 0.5.1：鼠标延迟与乱跳修复（历史记录）
 
 2026-11-11，固件 `5.4-beta.1+amac.0.5.1`。两种芯片镜像均来自干净源码
 提交 `8ec24003be26cba5973cb66fc968f4c00435733b`，旁置 JSON 均为
