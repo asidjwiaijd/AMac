@@ -56,6 +56,10 @@ Mac 客户机为 480×360，要求 640×480 等较高分辨率的软件仍可能
 电脑预览已接入同一状态机和绘图代码，见[电脑端说明](examples/amac-desktop/README.md)。
 送礼人可查看[彩蛋触发清单和个性化说明](BIRTHDAY_SECRETS.md)（包含剧透）。
 
+实板 System 7 已使用用户提供的 480×360 图片设置桌面壁纸，通过 Décor
+随 Mac 启动加载。图片、安装方式及重启验证见[壁纸记录](guest/wallpaper/README.md)。
+这项设置保存在实板的 Mac 系统盘中；电脑预览的另一份磁盘需单独安装。
+
 ## 固定的开发依赖
 
 - PlatformIO + pioarduino 提交 `fbdfc2962e468ca3c4b51811ae691ed887df903c`
