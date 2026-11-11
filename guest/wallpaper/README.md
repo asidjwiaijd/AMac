@@ -9,7 +9,7 @@
 
 ## 实板安装
 
-当前实板使用 System 7，固件为 `5.4-beta.1+amac.0.5.1`。
+安装壁纸时实板使用 System 7，固件为 `5.4-beta.1+amac.0.5.1`。
 使用 François Pottier 的 [Décor 3.0.4](https://pauillac.inria.fr/~fpottier/decor.html.en)。
 作者页面声明该工具现已免费，原安装包中的旧收费注册说明可以忽略。
 第三方程序保存在本机安装归档中，没有随仓库分发。
@@ -49,3 +49,5 @@
 2026-11-11 实板验证：取消 CD-ROM 挂载、正常关机并重新启动后，壁纸自动
 恢复，For You 与 Start Here 图标保留。最终彩色截屏为
 `wallpaper-after-restart.png`；启动配置比较结果为 `restored-settings.json`。
+之后更新至 0.5.2 并修复 C5 Wi-Fi，壁纸继续正常显示，见
+`artifacts/wifi/2026-11-11/final-wifi-desktop.png`。
