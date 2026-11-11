@@ -400,7 +400,7 @@ static void scanExtFSFolders(void);
 static void runSettingsScreen(void);
 static void runWiFiScreen(void);
 static void runUsbMscScreen(void);
-static void initWiFi(void);
+static bool initWiFi(void);
 static void drawC6FirmwareUpdateSplash(void);
 static void runC6FirmwareUpdateIfNeeded(void);
 
@@ -842,10 +842,10 @@ static WifiSummary readWifiSummary(void)
 // WiFi Initialization
 // ============================================================================
 
-static void initWiFi(void)
+static bool initWiFi(void)
 {
     if (wifi_initialized) {
-        return;
+        return true;
     }
     
     Serial.println("[BOOT_GUI] Initializing WiFi...");
@@ -856,7 +856,10 @@ static void initWiFi(void)
     BoardWifi_Prepare();
     
     // Set WiFi mode to station
-    WiFi.mode(WIFI_STA);
+    if (!WiFi.mode(WIFI_STA)) {
+        Serial.println("[BOOT_GUI] WiFi initialization failed; transport unavailable");
+        return false;
+    }
     
     // Disable auto-reconnect so failed connections don't keep retrying
     // in the background (which blocks scanning)
@@ -867,6 +870,7 @@ static void initWiFi(void)
     
     wifi_initialized = true;
     Serial.println("[BOOT_GUI] WiFi initialized");
+    return true;
 }
 
 // ============================================================================
@@ -1178,13 +1182,19 @@ static void runWiFiScreen(void)
     if (wifi_ssid[0] && wifi_password[0]) snprintf(password, sizeof(password), "%s", wifi_password);
 
     int selected = -1, first = 0, connect_target = -1;
-    bool scanning = true, connecting = false, keyboard = false, shift = false;
+    bool scanning = false, connecting = false, keyboard = false, shift = false;
     int pressed = Screens::kWiFiNoControl, pressed_key = Screens::kKeyNone;
     bool inside = false;
     int scroll_dir = 0;
     uint32_t repeat_at = 0, clock_at = 0;
+    uint32_t scan_started = 0, connect_started = 0;
+    char wifi_notice[96] = "";
 
     auto statusText = [&](char *out, size_t n) {
+        if (wifi_notice[0]) {
+            snprintf(out, n, "%s", wifi_notice);
+            return;
+        }
         const wl_status_t status = WiFi.status();
         if (connecting && connect_target >= 0) {
             snprintf(out, n, "Status: Connecting to %s...", wifi_networks[connect_target].ssid);
@@ -1217,29 +1227,42 @@ static void runWiFiScreen(void)
             wv.scanning = scanning;
             wv.status = status;
             wv.password_length = (int)strlen(password);
-            wv.can_join = selected >= 0 && !connecting;
+            wv.can_join = wifi_initialized && selected >= 0 && !connecting && !scanning;
             wv.pressed = inside ? pressed : Screens::kWiFiNoControl;
             Screens::PaintWiFi(L, wv);
         }
         UI::Present();
     };
 
-    // Paint at once: initWiFi() can take a second or two on a cold boot.
-    paint("Status: Starting Wi-Fi...");
-    initWiFi();
-
-    // After a failed auto-connect the driver may still be associating.
-    // Disconnect (without erasing config) so the scan can run.
-    wl_status_t pre_status = WiFi.status();
-    Serial.printf("[BOOT_GUI] WiFi pre-scan status: %d\n", pre_status);
-    if (pre_status != WL_IDLE_STATUS && pre_status != WL_DISCONNECTED) {
-        WiFi.disconnect(false);
-        delay(100);
-    }
-    WiFi.scanDelete();
-    Serial.println("[BOOT_GUI] Starting initial WiFi scan...");
-    int scan_result = WiFi.scanNetworks(true);  // Async scan
-    Serial.printf("[BOOT_GUI] Scan initiated, result: %d\n", scan_result);
+    auto startScan = [&]() {
+        scanning = connecting = false;
+        selected = connect_target = -1;
+        first = 0;
+        rows.clear();
+        wifi_networks.clear();
+        wifi_notice[0] = '\0';
+        paint("Status: Starting Wi-Fi...");
+        if (!initWiFi()) {
+            snprintf(wifi_notice, sizeof(wifi_notice), "Status: Wi-Fi could not start. Press Scan to retry.");
+            return;
+        }
+        // Cancel association before scanning, without erasing credentials.
+        const wl_status_t pre_status = WiFi.status();
+        if (pre_status != WL_IDLE_STATUS && pre_status != WL_DISCONNECTED) {
+            WiFi.disconnect(false);
+            delay(100);
+        }
+        WiFi.scanDelete();
+        const int result = WiFi.scanNetworks(true);
+        Serial.printf("[BOOT_GUI] Scan initiated, result: %d\n", result);
+        if (result == WIFI_SCAN_FAILED) {
+            snprintf(wifi_notice, sizeof(wifi_notice), "Status: Scan failed. Press Scan to retry.");
+        } else {
+            scanning = true;
+            scan_started = millis();
+        }
+    };
+    startScan();
 
     WiFiKey shown;
     bool painted = false, should_exit = false;
@@ -1289,6 +1312,12 @@ static void runWiFiScreen(void)
             } else if (result == WIFI_SCAN_FAILED) {
                 Serial.println("[BOOT_GUI] Scan failed");
                 scanning = false;
+                snprintf(wifi_notice, sizeof(wifi_notice), "Status: Scan failed. Press Scan to retry.");
+            } else if ((uint32_t)(millis() - scan_started) >= 60000) {
+                Serial.println("[BOOT_GUI] Scan timed out");
+                WiFi.scanDelete();
+                scanning = false;
+                snprintf(wifi_notice, sizeof(wifi_notice), "Status: Scan timed out. Press Scan to retry.");
             }
         }
 
@@ -1307,6 +1336,10 @@ static void runWiFiScreen(void)
             } else if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
                 Serial.println("[BOOT_GUI] Connection failed");
                 connecting = false;
+            } else if ((uint32_t)(millis() - connect_started) >= 20000) {
+                WiFi.disconnect(false);
+                connecting = false;
+                snprintf(wifi_notice, sizeof(wifi_notice), "Status: Connection timed out. Check network and password.");
             }
         }
 
@@ -1373,18 +1406,18 @@ static void runWiFiScreen(void)
                 if (t.released) {
                     if (pressed != Screens::kWiFiNoControl && inside) {
                         if (pressed == Screens::kScanButton && !scanning) {
-                            Serial.println("[BOOT_GUI] Starting WiFi scan...");
-                            scanning = true;
-                            WiFi.scanNetworks(true);
+                            startScan();
                         } else if (pressed == Screens::kBackButton) {
                             should_exit = true;
-                        } else if (pressed == Screens::kJoinButton && selected >= 0 && !connecting) {
+                        } else if (pressed == Screens::kJoinButton && wifi_initialized && selected >= 0 && !connecting && !scanning) {
                             const WiFiNetworkInfo &net = wifi_networks[selected];
                             const bool open = net.encryption == WIFI_AUTH_OPEN;
                             Serial.printf("[BOOT_GUI] Connecting to %s (%s)...\n", net.ssid,
                                           open ? "open" : "encrypted");
                             connecting = true;
                             connect_target = selected;
+                            connect_started = millis();
+                            wifi_notice[0] = '\0';
                             if (open || !password[0]) WiFi.begin(net.ssid);
                             else WiFi.begin(net.ssid, password);
                         } else if (pressed == Screens::kPasswordField) {
@@ -1425,7 +1458,7 @@ static void runWiFiScreen(void)
         key.pressed = inside ? (keyboard ? pressed_key : pressed) : -100;
         key.password_length = (int)strlen(password);
         key.scanning = scanning;
-        key.can_join = selected >= 0 && !connecting;
+        key.can_join = wifi_initialized && selected >= 0 && !connecting && !scanning;
         key.keyboard = keyboard;
         key.shift = shift;
         memcpy(key.status, status, sizeof(key.status));
@@ -1784,7 +1817,7 @@ static String controlExecute(char *command)
     }
     if (!strcmp(command, "WIFI CONNECT")) {
         if (!wifi_ssid[0]) return "ERR BOOT wifi_ssid_required";
-        initWiFi();
+        if (!initWiFi()) return "ERR BOOT wifi_init_failed";
         WiFi.disconnect(false);
         WiFi.begin(wifi_ssid, wifi_password);
         control_wifi_changed = false;
@@ -1906,8 +1939,7 @@ bool BootGUI_Init(void)
     // comes up working. On Tab5 BoardWifi_IsCoprocessorFirmwareOutdated
     // is a no-op stub so the whole block resolves to a cheap skip.
 #if defined(BOARD_WAVESHARE_P4_101)
-    initWiFi();
-    runC6FirmwareUpdateIfNeeded();
+    if (initWiFi()) runC6FirmwareUpdateIfNeeded();
 #endif
 
     // Kick off WiFi auto-connect in the background if configured. The
@@ -1916,11 +1948,12 @@ bool BootGUI_Init(void)
     // at boot, and the settings screen can always show the live status.
     if (BOOTGUI_ENABLE_WIFI_AUTOCONNECT && wifi_auto_connect && strlen(wifi_ssid) > 0) {
         Serial.printf("[BOOT_GUI] Auto-connecting to WiFi: %s\n", wifi_ssid);
-        initWiFi();
-        if (strlen(wifi_password) > 0) {
-            WiFi.begin(wifi_ssid, wifi_password);
-        } else {
-            WiFi.begin(wifi_ssid);
+        if (initWiFi()) {
+            if (strlen(wifi_password) > 0) {
+                WiFi.begin(wifi_ssid, wifi_password);
+            } else {
+                WiFi.begin(wifi_ssid);
+            }
         }
     } else if (wifi_auto_connect && strlen(wifi_ssid) > 0) {
         Serial.println("[BOOT_GUI] WiFi auto-connect disabled by build flag");
@@ -1966,9 +1999,10 @@ static void bootGuiCleanupWifi(void)
     if (control_wifi_changed) {
         if (wifi_initialized) WiFi.disconnect(false);
         if (BOOTGUI_ENABLE_WIFI_AUTOCONNECT && wifi_auto_connect && wifi_ssid[0]) {
-            initWiFi();
-            WiFi.begin(wifi_ssid, wifi_password);
-            waitForWiFiAutoConnect();
+            if (initWiFi()) {
+                WiFi.begin(wifi_ssid, wifi_password);
+                waitForWiFiAutoConnect();
+            }
         }
         control_wifi_changed = false;
     } else if (wifi_initialized && BOOTGUI_ENABLE_WIFI_AUTOCONNECT && wifi_auto_connect && wifi_ssid[0]) {
