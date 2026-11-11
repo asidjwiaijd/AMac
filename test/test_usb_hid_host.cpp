@@ -81,19 +81,21 @@ static void processKeyboardReport(hid_keyboard_report_t*,hid_keyboard_report_t*,
 static void processMouseReport(const usb_transfer_t*t,EndpointInfo*ep){uint8_t b;int16_t x,y,w;if(ep->mouse.decode(t->data_buffer,t->actual_num_bytes,&b,&x,&y,&w))motions.push_back({x,y,b});else++ignored;}
 #include "input_usb_host.inc"
 
+// Interface 0 descriptor captured from the attached 04f3:026f mouse.
 static const std::vector<uint8_t> mouse_descriptor={
- 0x05,9,0x19,1,0x29,5,0x15,0,0x25,1,0x75,1,0x95,5,0x81,2,
- 0x75,3,0x95,1,0x81,3,
+ 0x05,1,0x09,2,0xa1,1,0x09,1,0xa1,0,
+ 0x05,9,0x19,1,0x29,5,0x15,0,0x25,1,0x95,5,0x75,1,0x81,2,
+ 0x95,1,0x75,3,0x81,1,
  0x05,1,0x09,0x30,0x09,0x31,0x16,1,0x80,0x26,0xff,0x7f,0x75,16,0x95,2,0x81,6,
  0x09,0x38,0x15,0x81,0x25,0x7f,0x75,8,0x95,1,0x81,6,
- 0x75,8,0x95,1,0x81,3};
+ 0x05,0x0c,0x0a,0x38,2,0x95,1,0x81,6,0xc0,0xc0};
 static const std::vector<uint8_t> vendor_descriptor={0x06,0,0xff,0x09,1,0x75,8,0x95,8,0x81,2};
 static void configure(bool keyboard=false){
  configuration={9,2,0,0,(uint8_t)(keyboard?1:2),1,0,0x80,50};
  auto add=[&](uint8_t number,uint8_t ep,uint8_t protocol,size_t length){
   const uint8_t data[]={9,4,number,0,1,3,(uint8_t)(protocol?1:0),protocol,0,
                       9,0x21,0x11,1,0,1,0x22,(uint8_t)length,(uint8_t)(length>>8),
-                      7,5,ep,3,8,0,1};
+                      7,5,ep,3,(uint8_t)(ep==0x82?32:8),0,1};
   configuration.insert(configuration.end(),data,data+sizeof(data));
  };
  if(keyboard)add(3,0x83,1,0);else {add(0,0x81,0,mouse_descriptor.size());add(1,0x82,0,vendor_descriptor.size());}
@@ -119,6 +121,16 @@ int main(){
  packet(0x81,{2,4,0,0xfb,0xff,0,0});
  assert(motions.size()==1&&motions.back().x==4&&motions.back().y==-5&&motions.back().buttons==2);
  packet(0x82,{0xff,0xff,0x7f,0xff,0x7f,0xff,0x7f,0});assert(motions.size()==1);
+ // Captured prefix from this board's 04f3:026f, interface 1, 32-byte
+ // status report. Using interface 0's layout used to turn this idle packet
+ // into x=1024, y=25601 and a middle-button press every ~5 seconds.
+ const uint8_t status[32]={4,0,4,1,0x64,0,4,0,1,0x20,1,0,0,0,0,0};
+ uint8_t bad_buttons;int16_t bad_x,bad_y,bad_wheel;
+ assert(HidDecodeMouseReport(status,sizeof(status),&host.devices[0].endpoint_info[1].mouse.layout,
+                            &bad_buttons,&bad_x,&bad_y,&bad_wheel));
+ assert(bad_x==1024&&bad_y==25601&&bad_buttons==4);
+ packet(0x82,{4,0,4,1,0x64,0,4,0,1,0x20,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0});
+ assert(motions.size()==1);
  unsigned calls=submits;
  for(int i=0;i<100;++i){++now_ms;host.task();}
  assert(submits==calls&&errors==0); // Pending URBs are never resubmitted.

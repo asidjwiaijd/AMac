@@ -1,6 +1,77 @@
 # aMac 验证记录
 
-## 0.5.0：USB 鼠标与不拆机更新（当前版本）
+## 0.5.1：鼠标延迟与乱跳修复（当前版本）
+
+2026-11-11，固件 `5.4-beta.1+amac.0.5.1`。两种芯片镜像均来自干净源码
+提交 `8ec24003be26cba5973cb66fc968f4c00435733b`，旁置 JSON 均为
+`source_dirty=false`。后续测试夹具和验证文档提交不改变固件二进制。
+版本标签为 `amac-v0.5.1-mouse-response`。
+
+| 环境 | 最终构建 | 最低芯片 revision | 合并镜像字节数 |
+| --- | --- | --- | ---: |
+| `amac_p4_rev3` | SUCCESS，47.708 秒 | 3.1 | 1955504 |
+| `amac_p4_es` | SUCCESS，53.155 秒 | 0.1 | 1952736 |
+
+```text
+aMac-P4C5-HD20034-Rev3.bin
+bf21b76078c0b42d916a19defa70b2604c13b19dcb6322f278030e574565a49e
+
+aMac-P4C5-HD20034-ES.bin
+18dc12ae515e7a1ee2ffef053f73be665d042475b766b0895ff03e8cc336314b
+```
+
+两份合并镜像的组件偏移、P4 镜像头、组件及整包 SHA-256、应用版本与源码
+来源均已再次核对，结果保存于下述 `release-verification.json`。
+
+输入任务由 20 ms 改为 1 ms 目标间隔，USB Host 事件处理不再附加阻塞
+等待，interrupt-IN 传输在完成回调中连续重新提交。板级 ADC 等轮询保留
+20 ms。每个 HID 接口的描述符只绑定该接口的端点，未知/待解析报告不再
+猜测为鼠标。解析器只接受相对 X/Y，补齐 Global PUSH/POP 与 usage range。
+aMac 的显示信号及最小刷新间隔均为 16 ms，其他板型的间隔保持原值。
+
+完整 89 项回归全部通过，115.941 秒，支持的 C++ 检查使用 ASan/UBSan。
+新增测试直接包含生产 USB Host 实现，以异步模拟 SDK 检查连续接收、接口
+隔离、禁止重复提交、延时错误恢复、断连后排空、设备槽复用以及键盘 LED
+控制传输生命周期。实际鼠标描述符/状态前缀加入夹具后单项补跑通过，
+1.990 秒。日志：
+
+- `artifacts/build/amac-0.5.1-complete-tests.log`
+- `artifacts/build/amac-0.5.1-real-mouse-regression.log`
+- `artifacts/build/amac-p4-rev3-mouse-response.log`
+- `artifacts/build/amac-p4-es-mouse-response.log`
+
+实板仍为 P4 v3.2，通过 USB2 COM12 只更新应用区 `0x10000`。
+先从 Finder 正常关机，更新工具保存经 ROM 摘要确认的 0.5.0 回退副本；
+写入校验及独立 ROM MD5 均通过。新应用 SHA-256 为
+`7a175d1fd79cc835d2da13314c6f38fdaf4a307aeab32e6f66c7a939a8b64b8e`。
+更新记录：`artifacts/updates/2026-11-11_115249_432142/result.json`。
+随后自动启动 System 7，USB 控制、真实鼠标移动及桌面应用运行正常。
+
+本次实板捕获明确复现了乱跳根因：连接的 `04f3:026f` 鼠标接口 0 发送
+相对位移，接口 1 的端点 `0x82` 约每 4918 ms 发送一次 32 字节状态包。
+原始前缀为 `04000401640004000120010000000000`。旧驱动将接口 0 的
+布局用于这一包，解码成 `dx=1024, dy=25601, buttons=4`，因此静止时也会
+跳动并产生中键。新版将该包留在接口 1，忽略其鼠标输入含义。
+
+更新后的 60 秒空闲采样收到 13 包此类状态报告，接受的鼠标位移报告为 0，
+USB 传输错误为 0，最大 USB 服务间隔 2312 µs。随后实际移动鼠标的累计
+接受报告超过 21000，错误仍为 0，最大服务间隔 2520 µs；短时采样中连续
+真实报告的时间戳间隔中位数为 2 ms。这些数值衡量 USB 接收服务，不能
+直接等同于屏幕端到端延迟；主观跟手程度仍需用户确认。
+
+证据位于 `artifacts/mouse/2026-11-11/`：
+
+- `boot-and-input.log`、`update.log`
+- `live-input-samples.json`、`sampling-summary.json`
+- `active-input-samples.json`、`active-summary.json`
+- `after-update-desktop.png`、`before-settings-check.png`
+- `final-desktop-status.json`、`release-verification.json`
+
+本轮最后观察到用户正在运行 SimCity，保留了当前游戏状态。0.5.1 启动
+设置页的独立实板复测等待正常关机；两处共用的生产接收逻辑已通过上述
+测试。0.5.0 的设置页实板验证记录保留在下节。
+
+## 0.5.0：USB 鼠标与不拆机更新（历史记录）
 
 2026-11-11，固件`5.4-beta.1+amac.0.5.0`。固件构建来自干净源码提交
 `f9b136f295cde6ba155ec296997e425e0fcb389b`，两份JSON均为

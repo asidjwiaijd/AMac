@@ -1,8 +1,10 @@
 # aMac P4C5 移植说明
 
-2026-11-11，版本 `5.4-beta.1+amac.0.5.0`。这是使用用户补充的
+2026-11-11，版本 `5.4-beta.1+amac.0.5.1`。这是使用用户补充的
 `kernel修改说明.zip` 中屏幕初始化表和时序的移植版。已通过内部 USB Serial/JTAG
 烧录 P4 v3.2 并校验，实板 SD 读写、配置保存、鼠标识别和 System 7 启动通过。
+本版修复复合鼠标状态包被误判为位移的问题，持续接收 USB 中断报告，
+输入任务目标间隔改为 1 ms，aMac 显示更新间隔改为 16 ms。
 日常固件和 SD 文件可通过 USB2 更新，无需取卡，见[不拆机更新说明](AMAC_UPDATES.md)。
 完整依据和格式适配见 [屏幕驱动参考](hardware/reference/HD20034_KERNEL_REFERENCE.md)。
 
@@ -33,7 +35,7 @@
 | microSD | SDMMC slot 0，保守的1-bit/4 MHz，挂载失败后尝试400 kHz；卡固定3V3供电，IO LDO4固定3.3V，不自动格式化/切换1.8V |
 | SD 检测 | GPIO45 只作输入；移除 EV board 把它当电源输出的定义 |
 | Wi-Fi | 模组内部 SDIO slot 1；C5 reset54，CLK18/CMD19/D0..3=14..17；同版本源码重编通信入口，校验 C5 |
-| USB 键鼠 | 经底板U1 hub，以FS/LS兼容模式避开TT限制；鼠标可操作启动设置，进入Mac后复用同一Host |
+| USB 键鼠 | 经底板U1 hub，以FS/LS兼容模式避开TT限制；按接口/端点解析HID报告，持续接收中断输入；启动设置与Mac复用同一Host |
 | 串口 | UART0 TX37/RX38，经USB1串口桥，115200；USB2内部Serial/JTAG同时提供控制和文件维护接口 |
 | 电池 | GPIO22 原始电压用于两级休眠保护；GPIO21 读取 CHRG；向 Mac 报告的百分比估算仍默认关闭 |
 | 红外 | GPIO12 仅设为输入；未指定遥控协议/键码，不把 IR_OUT 当 PWM 输出 |
@@ -252,7 +254,7 @@ aMac 检查包含附件41条DCS命令的逐字节比对、复位/背光/失败�
 `artifacts/amac-ui/`。本机原生检查使用 G++；需要 ASan 时在支持的环境设置
 `CXX=clang++` 和 `AMAC_SANITIZERS=address,undefined`。
 
-本版完整88项回归在WSL Ubuntu运行：
+本版完整89项回归在WSL Ubuntu运行：
 
 ```powershell
 wsl -d Ubuntu -- env CXX=clang++ AMAC_SANITIZERS=address,undefined python3 -m unittest discover -s test -v
