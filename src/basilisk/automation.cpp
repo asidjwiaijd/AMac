@@ -923,7 +923,7 @@ static void processLegacyCommand(char *command)
         return;
     }
     if (strcmp(command, "POWER") == 0 || strcmp(command, "POWER STATUS") == 0) {
-        char state[512];
+        char state[768];
         PowerManagerDescribe(state, sizeof(state));
         protocolReply("@B2 OK POWER %s\n", state);
         return;

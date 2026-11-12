@@ -1,6 +1,7 @@
 #include "low_battery.h"
 #include "board_power.h"
 #include "board_config.h"
+#include "amac/amac_battery_telemetry.h"
 #include <Arduino.h>
 #include <cassert>
 #include <cstdio>
@@ -55,15 +56,75 @@ int main()
     BoardBatteryDescription desc = {};
     assert(!BoardPowerHW_Describe(&desc));
     assert(!BoardPowerHW_Read(nullptr));
+    AmacBatteryTelemetry telemetry;
+    assert(!AmacBatteryGetTelemetry(nullptr));
+    assert(!AmacBatteryGetTelemetry(&telemetry));
+    assert(!telemetry.voltage_valid && telemetry.charging == -1 && telemetry.chrg_low == -1);
     BoardBatteryRaw raw = {};
     assert(BoardPowerHW_Read(&raw));
     assert(reads == 9 && configured == 1 && raw.present && raw.pack_mv == 3800);
     assert(!raw.charging);
+    assert(AmacBatteryGetTelemetry(&telemetry));
+    assert(telemetry.samples == 1 && telemetry.voltage_valid && telemetry.charging == -1);
+    g_fake_millis = 999;
+    assert(BoardPowerHW_Read(&raw));
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(telemetry.charging == -1); // Repeated fast polls cannot bypass debounce.
+    g_fake_millis = 1000;
+    assert(BoardPowerHW_Read(&raw));
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(telemetry.charging == 0 && telemetry.chrg_low == 0);
     charging = true;
     adc_mv = 1850;
+    g_fake_millis = 1500;
     assert(BoardPowerHW_Read(&raw));
-    assert(reads == 17 && configured == 1 && raw.pack_mv == 3700 && raw.charging);
+    assert(reads == 33 && configured == 1 && raw.pack_mv == 3700 && raw.charging);
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(telemetry.chrg_low == 1 && telemetry.charging == 0);
+    charging = false; // A short glitch must not announce charging.
+    g_fake_millis = 2000;
+    assert(BoardPowerHW_Read(&raw));
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(telemetry.charging == 0);
+    charging = true;
+    g_fake_millis = 2200;
+    assert(BoardPowerHW_Read(&raw));
+    g_fake_millis = 3200;
+    assert(BoardPowerHW_Read(&raw));
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(telemetry.charging == 1);
+    const unsigned before_cache = reads;
+    g_fake_millis = 8200;
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(telemetry.voltage_valid && telemetry.charging == 1);
+    g_fake_millis = 8201;
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(!telemetry.voltage_valid && telemetry.charging == -1 && telemetry.chrg_low == -1);
+    assert(reads == before_cache); // Diagnostics never reads ADC on another task.
+    assert(BoardPowerHW_Read(&raw));
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(telemetry.voltage_valid && telemetry.charging == -1); // Gap needs new debounce.
+    g_fake_millis = 9201;
+    assert(BoardPowerHW_Read(&raw));
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(telemetry.charging == 1);
     adc_mv = 0;
     assert(BoardPowerHW_Read(&raw) && !raw.present && !raw.charging);
-    std::puts("aMac battery thresholds, debounce, wake grace and ADC path passed");
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(!telemetry.voltage_valid && telemetry.charging == -1 && telemetry.chrg_low == 1);
+    adc_mv = 2100;
+    g_fake_millis = UINT32_MAX - 499;
+    assert(BoardPowerHW_Read(&raw));
+    g_fake_millis = 500;
+    assert(BoardPowerHW_Read(&raw));
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(telemetry.pack_mv == 4200 && telemetry.charging == 1); // millis wrap.
+    charging = false;
+    g_fake_millis = 600;
+    assert(BoardPowerHW_Read(&raw));
+    g_fake_millis = 1600;
+    assert(BoardPowerHW_Read(&raw));
+    AmacBatteryGetTelemetry(&telemetry);
+    assert(telemetry.charging == 0 && telemetry.chrg_low == 0);
+    std::puts("aMac battery thresholds, ADC, charge debounce, stale data and wraparound passed");
 }
