@@ -23,6 +23,21 @@ to set the backlight from the Mac.
 This document covers using it, how it works, and how to add battery
 support to another board.
 
+### aMac P4C5 voltage protection
+
+The aMac build currently leaves the guest battery percentage service disabled.
+Its `POWER` reply still includes `raw_mv`: the measured pack voltage used by
+the independent low-voltage policy. Zero-valued guest fields such as `percent`
+and `mv` do not mean that `raw_mv` is zero. `POWER SIM` affects the guest service,
+while voltage protection continues to use the real ADC readings.
+
+The aMac policy uses pack voltage below 3.9 V for screen-off standby and below
+3.7 V for orderly guest shutdown followed by deep sleep, with a 5-second
+confirmation period. Deep sleep checks voltage every 300 seconds and resumes
+at 3.9 V. These are measured-voltage thresholds, not a calibrated charge gauge.
+See [the validation record](AMAC_VALIDATION.md) for the 2026-11-13 real-board
+voltage and supply-switching checks and their limits.
+
 ## Using it
 
 ### Control Strip
