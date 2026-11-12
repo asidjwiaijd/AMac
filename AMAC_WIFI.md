@@ -1,7 +1,7 @@
 # aMac Wi-Fi 设置与 C5 修复记录
 
 P4 通过模组内部 SDIO slot 1 使用 C5 的无线功能，SD 卡使用 slot 0。
-实板当前为 P4 固件 `5.4-beta.1+amac.0.5.2`，C5 为 OSPTEK 发布的
+实板当前为 P4 固件 `5.4-beta.1+amac.0.5.3`，C5 为 OSPTEK 发布的
 ESP-Hosted 2.12.9。P4 固定 SDK 中的 host 为 2.12.3，transport 按 C5
 从同版本源码编译；这组版本已经在当前硬件上完成连接和数据传输验证。
 

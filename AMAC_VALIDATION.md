@@ -1,5 +1,69 @@
 # aMac 验证记录
 
+## 0.5.3：独立充电检测实测（当前版本）
+
+2026-11-13，P4 固件 `5.4-beta.1+amac.0.5.3`。两种镜像均由干净源码提交
+`0e49714ab3b1d9a177b2acf8b35bb90b9aeab7f1` 构建，`source_dirty=false`。
+版本标签 `amac-v0.5.3-charging-detection`；后续文档提交不改变固件。
+
+| 环境 | 构建 | 合并镜像字节数 | 最低 revision |
+| --- | --- | ---: | --- |
+| `amac_p4_rev3` | SUCCESS，94.468 秒 | 1956976 | 3.1 |
+| `amac_p4_es` | SUCCESS，81.523 秒 | 1954144 | 0.1 |
+
+```text
+aMac-P4C5-HD20034-Rev3.bin
+5d8fb387740ad17e09e1ed92153c6b76f5849b15f4a9c28c5df7a987b9f0a414
+
+aMac-P4C5-HD20034-ES.bin
+e6883cf8e4a9db2ca2dd24592aa96ea22c1d9e5a3f7ea750299b19d9a673fff6
+```
+
+两份合并镜像的偏移、P4 镜像头、组件逐字节内容、SHA-256、来源、版本
+字符串及 C5 transport 链接均核对通过。完整 92 项回归通过，140.617 秒；
+支持的 C++ 检查启用 ASan/UBSan。新增检查使用实际板级驱动，覆盖充电
+防抖、短暂跳变、无效 ADC、缓存读取不触碰 ADC、超过 5 秒的旧采样、
+采样中断后重新确认及毫秒回绕；维护工具检查旧固件兼容、无效/过期状态、
+充电判断独立于关闭的客机电池服务，且不把高电平判作“充满”。
+
+实板 BOM `BOM_bottom_v2.2_pcb_bottom_2026-11-03.xlsx` 的 U9 为富满
+`LTH7R.`，LCSC C841234。CHRG pin 1 经 10 kΩ 上拉接 GPIO21。
+Mac 在 Finder 正常关机后，经 USB2 COM12 仅更新 P4 应用 `0x10000`；
+原 0.5.2 应用先与目标 Flash 的 ROM 摘要匹配并备份。写入校验及独立 ROM
+复验均通过，新应用 SHA-256：
+`43098abf741814b7c8585e58f2d0a89760dc792ba1bdeede5492d2e6eff9c88e`。
+记录为 `artifacts/updates/2026-11-13_021800_287614/result.json`。
+
+新固件启动后进入 Finder；再次正常关机进入维护设置，用户按要求拔掉
+USB1，保留电池与 USB2，然后接回 USB1。实际读取如下，全部
+`simulated=0`、`raw_valid=1`，采样年龄均小于 1 秒：
+
+| 阶段 | 采样数 | 实测电压范围 | GPIO21 | `raw_charging` |
+| --- | ---: | --- | --- | --- |
+| 更新后，USB1 一直连接 | 12 | 4216–4220 mV | 高 | 首次 -1，稳定后 0 |
+| 维护页，纯电池 | 15 | 4168–4176 mV | 高 | 全部 0，未在充电 |
+| 维护页，接回 USB1 | 20 | 4224–4228 mV | 低 | 全部 1，正在充电 |
+
+纯电池和接回 USB1 的会话均为 `0CBD2E61`，切换未重启 P4；维护页
+持续采样，采样计数递增。初始 USB1 接入但 CHRG 高，证明“插线”与
+“正在充电”需要区分；本次没有据此确认充满。接回 USB1 后 CHRG 明确
+变低，验证了实际充电信号，而不只是电压回升。维护菜单选项 8 在维护页
+和 Mac 启动后均实测可用，显示“正在充电”。
+
+最后重新启动 Mac 并检查 480×360 彩色桌面：壁纸、Start Here、For You
+图标均可见。运行阶段 `raw_mv=4230`、`raw_valid=1`、`raw_charging=1`，
+采样计数继续增加，采样年龄 591 ms。USB1 已接回，设备留在正常桌面。
+证据为 `final-status.json`、`final-desktop.png`。
+
+电压绝对精度仍缺万用表校准；本次未测充电电流、完整充满周期、RTC
+唤醒和深睡电流。充电芯片独立管理充电，此功能只读取状态。
+没有独立 VBUS 检测，CHRG 高时不能区分未插线与已停止充电。
+Mac 百分比服务保持默认关闭，3.9/3.7 V 电压策略保持原值。
+
+证据目录 `artifacts/charging/2026-11-13/`：完整软件/双构建日志、发布
+校验、更新日志、三阶段采样 JSON 与 `sampling-summary.json`、维护菜单
+日志、更新前桌面/关机菜单和维护页截图。历史版本和回退文件均保留。
+
 ## 2026-11-13：电池电压采样与供电切换实测
 
 当前源码的三项定向检查全部通过，5.900 秒：aMac 电压阈值/ADC 换算、
@@ -32,7 +96,7 @@ RTC 唤醒间隔参数为 `300000000` 微秒。
 
 实测通过的范围是电池供电、启动、实时电压采集和供电切换。无万用表，
 ADC 的绝对精度尚未校准；本次电压较高，没有实机触发 3.9 V 待机、3.7 V
-深睡、RTC 定时恢复或测量深睡电流。当前协议只公开用于保护的 `raw_mv`，
+深睡、RTC 定时恢复或测量深睡电流。当时的协议只公开用于保护的 `raw_mv`，
 未单独验收 GPIO21 充电指示电平。
 
 Mac 电量百分比服务仍默认关闭，所以 `battery/present/percent/mv/charging`
@@ -45,7 +109,7 @@ Mac 电量百分比服务仍默认关闭，所以 `battery/present/percent/mv/ch
 - `battery-only-samples.json`、`battery-only-steady.json`、`usb-restored.json`
 - `sampling-summary.json`、`battery-only-desktop.png`、`final-battery-desktop.png`
 
-## 0.5.2：C5 Wi-Fi 恢复与错误处理（当前版本）
+## 0.5.2：C5 Wi-Fi 恢复与错误处理
 
 2026-11-11，P4 固件 `5.4-beta.1+amac.0.5.2`。两种镜像均由干净源码提交
 `42b6dce0818016a64d839fdc228b0f54db41fcd3` 构建，JSON 中
