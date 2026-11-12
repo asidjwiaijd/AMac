@@ -41,6 +41,9 @@
 #include "board_power.h"
 #include "low_battery.h"
 #include "birthday_gift_runtime.h"
+#if defined(BOARD_AMAC_P4)
+#include "amac/amac_battery_telemetry.h"
+#endif
 
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
@@ -727,6 +730,10 @@ void PowerManagerIdlePoll(void)
 
 int PowerManagerDescribe(char *buffer, size_t size)
 {
+#if defined(BOARD_AMAC_P4)
+	AmacBatteryTelemetry raw;
+	AmacBatteryGetTelemetry(&raw);
+#endif
 	BoardBatteryStatus st = {};
 	const bool battery = BoardPower_GetBattery(&st);
 	int queue = 0;
@@ -741,7 +748,7 @@ int PowerManagerDescribe(char *buffer, size_t size)
 		"sleep_timeout=%u dim_timeout=%u dimming=%d auto_sleep_off=%d sleep_queue=%d sleeps=%lu unknown=%lu "
 		"calls=%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu"
 #if defined(BOARD_AMAC_P4)
-		" raw_mv=%u"
+		" raw_mv=%u raw_valid=%d raw_charging=%d raw_chrg_low=%d raw_age_ms=%lu raw_samples=%lu"
 #endif
 		,
 		pm_enabled ? 1 : 0, services_installed ? 1 : 0, battery ? 1 : 0,
@@ -758,7 +765,9 @@ int PowerManagerDescribe(char *buffer, size_t size)
 		(unsigned long)call_counts[kCountSleep], (unsigned long)call_counts[kCountServices],
 		(unsigned long)call_counts[kCountGestalt]
 #if defined(BOARD_AMAC_P4)
-		, LowBatteryVoltageMv()
+		, raw.pack_mv, raw.voltage_valid ? 1 : 0, (int)raw.charging, (int)raw.chrg_low,
+		(unsigned long)(raw.samples ? (uint32_t)(millis() - raw.sample_ms) : 0),
+		(unsigned long)raw.samples
 #endif
 		);
 }

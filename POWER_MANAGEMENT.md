@@ -38,6 +38,38 @@ at 3.9 V. These are measured-voltage thresholds, not a calibrated charge gauge.
 See [the validation record](AMAC_VALIDATION.md) for the 2026-11-13 real-board
 voltage and supply-switching checks and their limits.
 
+### aMac physical charging diagnostics (0.5.3)
+
+The bottom-board BOM identifies U9 as Fuman `LTH7R.` (LCSC C841234).
+Its CHRG pin 1 reaches GPIO21 with an external 10 kΩ pull-up; a low signal
+indicates charging. See the [manufacturer datasheet](https://datasheet.lcsc.com/datasheet/pdf/12d7601b3ccb6a3df8a2d7b8db0c3282.pdf?productCode=C841234)
+for the charger pinout and charging cycle. USB1 supplies the charger. USB2
+is the native P4 data connection and has no VBUS connection in this netlist.
+
+`POWER` adds independent, physical diagnostics even while the optional guest
+battery service is disabled:
+
+| Field | Meaning |
+| --- | --- |
+| `raw_mv` | ADC pack voltage in mV; check validity before interpreting |
+| `raw_valid` | Pack voltage is 2500–4500 mV and sample is at most 5 s old |
+| `raw_charging` | 1 charging, 0 not charging, -1 unknown; 1 s stable signal required |
+| `raw_chrg_low` | Immediate GPIO21 assertion, -1 before sampling or if stale |
+| `raw_age_ms`, `raw_samples` | Age and count of physical samples |
+
+The input task samples once a second during maintenance as well as during
+Mac operation. Maintenance sampling does not invoke the guest low-voltage
+sleep policy. Diagnostics reads a locked cache and does not perform ADC
+reads from the emulator/serial task. Invalid voltage or a gap longer than
+5 seconds resets charging certainty. `POWER SIM` does not replace these fields.
+
+Run `scripts/maintain_amac.cmd` and choose **8 电池与充电状态** to read them.
+The old `charging` field still belongs to the guest service, so it may be 0
+while `raw_charging=1`. A high CHRG signal is only **not charging**: there is
+no separate VBUS detector to distinguish unplugged USB from charge completion.
+There is no measured charging current, calibrated percentage, or software
+charger control on this board.
+
 ## Using it
 
 ### Control Strip

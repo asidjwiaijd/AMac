@@ -802,12 +802,23 @@ static void inputTask(void *param)
     const TickType_t poll_interval = pdMS_TO_TICKS(INPUT_POLL_INTERVAL_MS) < 1 ?
         1 : pdMS_TO_TICKS(INPUT_POLL_INTERVAL_MS);
     uint32_t next_board_poll = millis();
+#if defined(BOARD_AMAC_P4)
+    uint32_t next_battery_poll = millis();
+#endif
     
     while (input_task_running) {
         uint32_t now = millis();
         if ((int32_t)(now-next_board_poll)>=0) {
             next_board_poll=now+BOARD_INPUT_INTERVAL_MS;
             Board_Update();
+#if defined(BOARD_AMAC_P4)
+            if (input_preboot && (int32_t)(now - next_battery_poll) >= 0) {
+                next_battery_poll = now + 1000;
+                // Maintenance needs live readings without running guest sleep policy.
+                BoardBatteryRaw raw;
+                BoardPowerHW_Read(&raw);
+            }
+#endif
             if (!input_preboot) {
                 BoardPower_Poll();
 #if defined(BOARD_AMAC_P4)
