@@ -187,6 +187,10 @@ void EmulOp(uint16 opcode, M68kRegisters *r)
 
 		case M68K_EMUL_OP_CLKNOMEM: {		// Clock/PRAM operations
 			bool is_read = (r->d[1] & 0x80) != 0;
+			// The ROM packs the outgoing byte in D1's upper word. D2 still
+			// contains caller state (e.g. 0x3a for SetDateTime), not the data.
+			if (!is_read)
+				r->d[2] = (r->d[1] >> 16) & 0xff;
 			if ((r->d[1] & 0x78) == 0x38) {
 				// XPRAM
 				uint8 reg = ((r->d[1] << 5) & 0xe0) | ((r->d[1] >> 10) & 0x1f);

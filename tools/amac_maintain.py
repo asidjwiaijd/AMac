@@ -35,7 +35,7 @@ def connect():
 def main():
     print('aMac USB 维护工具\n固件和 SD 文件均可通过线缆更新，不需要取出 SD 卡。')
     while True:
-        print('\n1 查看卡内文件  2 复制文件到设备  3 备份文件到电脑\n4 进入维护设置  5 启动 Mac  6 鼠标状态  7 更新固件\n8 电池与充电状态  0 退出')
+        print('\n1 查看卡内文件  2 复制文件到设备  3 备份文件到电脑\n4 进入维护设置  5 启动 Mac  6 鼠标状态  7 更新固件\n8 电池与充电状态  9 时间同步状态  0 退出')
         choice=input('请选择：').strip()
         if choice=='0': return 0
         try:
@@ -71,6 +71,13 @@ def main():
                     print(f"备份完成，共 {result['bytes']} 字节，保存到 {output}。")
                 elif choice=='5': client.boot_start();print('Mac 已开始启动。')
                 elif choice=='8': print(battery_summary(client.power()))
+                elif choice=='9':
+                    fields=dict(word.split('=',1) for word in client.request('TIME','OK TIME').split()[3:])
+                    count=int(fields.get('syncs','0'))
+                    state=(f"已校时（{fields['age_s']} 秒前）" if count else
+                           '正在获取网络时间' if fields.get('online')=='1' else '等待联网')
+                    print('当前时间：'+fields.get('local','未知').replace('T',' ')+
+                          '（台北）；网络校时：'+state+'。')
                 elif choice=='6':
                     fields=dict(word.split('=',1) for word in client.request('INPUT','OK INPUT').split()[3:])
                     print('鼠标：'+('已连接' if fields.get('mouse')=='1' else '未检测到')+

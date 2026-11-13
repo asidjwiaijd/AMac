@@ -22,6 +22,7 @@
 #include <time.h>
 #include "esp_system.h"
 #include "mac_clock.h"
+#include "mac_network_time.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/queue.h>
@@ -1698,6 +1699,13 @@ static bool controlHitRect(const char *name, UI::Rect *out)
 
 static String controlExecute(char *command)
 {
+#if defined(BOARD_AMAC_P4)
+    if (!strcmp(command, "TIME STATUS")) {
+        char state[256];
+        MacNetworkTimeDescribe(state, sizeof(state));
+        return String("OK TIME ") + state;
+    }
+#endif
     if (!strcmp(command, "STATUS")) {
         return String("OK BOOT STATUS ") + control_phase + " " + control_screen +
             " " + (control_restart_at ? "1" : "0");
@@ -1853,6 +1861,9 @@ bool BootGUI_ControlRequest(const char *command, char *reply, size_t capacity)
 
 void BootGUI_ControlPoll(void)
 {
+#if defined(BOARD_AMAC_P4)
+    MacNetworkTimePoll();
+#endif
     if (sd_maintenance.busy() && (uint32_t)(millis() - sd_transfer_activity) > 60000) {
         sd_maintenance.abort();
         Serial.println("[SD] Aborted idle USB transfer; original file preserved");
