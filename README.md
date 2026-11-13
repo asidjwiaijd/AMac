@@ -6,6 +6,10 @@ HD20034C40-V1（PDF 内型号 HD20034C40-H-V1），480×360 ST7701S MIPI 屏。
 [AMAC_PORT.md](AMAC_PORT.md)，引脚依据见 [hardware/README.md](hardware/README.md)。
 屏幕配置现已采用补充 `kernel修改说明.zip` 的初始化表和时序，见
 [屏幕驱动参考](hardware/reference/HD20034_KERNEL_REFERENCE.md)。
+当前版本 **0.6.3**：联网自动校准台北时间；未充电且低于 4.10 V 持续
+5 秒时正常关机深睡，并定时检测充电唤醒。使用前请阅读
+[不拆机更新](AMAC_UPDATES.md)、[自动校时](AMAC_TIME.md)、
+[关机与唤醒](AMAC_POWER_OFF.md)及[实测记录](AMAC_VALIDATION.md)。
 下文保留上游项目文档，其 Tab5/Waveshare 固件不能直接用于 aMac。
 
 # BasiliskII ESP32 — Classic Macintosh Emulator
