@@ -31,10 +31,17 @@ the independent low-voltage policy. Zero-valued guest fields such as `percent`
 and `mv` do not mean that `raw_mv` is zero. `POWER SIM` affects the guest service,
 while voltage protection continues to use the real ADC readings.
 
-The aMac policy uses pack voltage below 3.9 V for screen-off standby and below
-3.7 V for orderly guest shutdown followed by deep sleep, with a 5-second
-confirmation period. Deep sleep checks voltage every 300 seconds and resumes
-at 3.9 V. These are measured-voltage thresholds, not a calibrated charge gauge.
+Starting with 0.6.0, aMac requests orderly shutdown and deep sleep when the
+real pack voltage stays below 4.10 V for 5 seconds while not charging.
+There is no automatic screen-off standby tier. Charging suppresses this
+shutdown, so a charger wake can boot at a voltage below the threshold.
+Manual guest shutdown also sleeps after a 10-second maintenance window.
+Deep sleep checks CHRG every 5 seconds and boots only on a newly detected
+charging signal, not on voltage rebound. If charging was already active at
+shutdown it must first be observed inactive, then active again. Invalid ADC
+cannot establish removal. A positive wake is confirmed again after 100 ms.
+See [shutdown and charger wake](AMAC_POWER_OFF.md) for hardware limits,
+USB maintenance preparation and the absence of guaranteed full-battery wake.
 See [the validation record](AMAC_VALIDATION.md) for the 2026-11-13 real-board
 voltage and supply-switching checks and their limits.
 
@@ -145,6 +152,7 @@ module) stay available either way.
 | `POWER BACKLIGHT n` | Set the backlight to `n` percent (5-100) |
 | `POWER WAKE` | End a sleep or an idle blank, as a touch would |
 | `POWER CHARGE 0` / `POWER CHARGE 1` | Test aid: turn the charger off / on (on again at every power-on) |
+| `POWER MAINTENANCE` | aMac: keep the next manual shutdown awake for USB maintenance; prepare within 10 minutes. Automatic low-voltage shutdown takes precedence. |
 
 The `[POWER]` lines in the boot log say whether the Power Manager was
 installed and why not, where `'M5pw'` was registered, the final
@@ -462,7 +470,7 @@ the Control Strip in the same state (collapse it, or keep the same modules).
   park the CPU at all.
 - Sleep procedures are not called (see Sleep above), so software that
   wants to know about sleep is not told.
-- No low-battery warnings, and no automatic shutdown on an empty battery.
+- On boards other than aMac, no low-battery warnings or automatic shutdown on an empty battery.
   The Mac shows the level but is not told when it becomes critical.
 - State-change notifications (`PMgrStateQInstall`) are accepted and never
   sent.

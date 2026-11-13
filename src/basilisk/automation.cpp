@@ -29,6 +29,7 @@
 #include "board_display.h"
 #include "board_power.h"
 #include "power_manager.h"
+#include "low_battery.h"
 #include "preboot_ui.h"
 #include "quickdraw_accel.h"
 #include "perf_sampler.h"
@@ -922,6 +923,13 @@ static void processLegacyCommand(char *command)
                       (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
         return;
     }
+#if defined(BOARD_AMAC_P4)
+    if (strcmp(command, "POWER MAINTENANCE") == 0) {
+        protocolReply(LowBatteryPrepareMaintenance() ? "@B2 OK POWER MAINTENANCE\n" :
+                                                      "@B2 ERR POWER powering_off\n");
+        return;
+    }
+#endif
     if (strcmp(command, "POWER") == 0 || strcmp(command, "POWER STATUS") == 0) {
         char state[768];
         PowerManagerDescribe(state, sizeof(state));

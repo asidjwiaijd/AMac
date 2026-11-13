@@ -155,6 +155,16 @@ class McpServerTests(unittest.TestCase):
 
 
 class SerialTransportTests(unittest.TestCase):
+    def test_prepare_maintenance_and_legacy_firmware(self):
+        c = self.control([b"@B2 OK POWER MAINTENANCE\n"])
+        self.assertTrue(c.prepare_maintenance())
+        self.assertEqual(c.serial.commands, [b"@B2 POWER MAINTENANCE\n"])
+        c = self.control([b"@B2 ERR unknown_command\n"])
+        self.assertFalse(c.prepare_maintenance())
+        c = self.control([b"@B2 ERR POWER powering_off\n"])
+        with self.assertRaisesRegex(mac_control.ControlError, 'powering_off'):
+            c.prepare_maintenance()
+
     @unittest.skipUnless(os.name == "posix", "POSIX modem control")
     def test_usb_control_lines_are_updated_atomically(self):
         import termios

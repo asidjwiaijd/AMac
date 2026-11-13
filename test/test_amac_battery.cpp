@@ -1,4 +1,5 @@
 #include "low_battery.h"
+#include "amac_charge_wake.h"
 #include "board_power.h"
 #include "board_config.h"
 #include "amac/amac_battery_telemetry.h"
@@ -25,32 +26,36 @@ extern "C" void BoardDisplay_SetBacklight(int) {}
 int main()
 {
     using Action = LowBatteryAction;
+    static_assert(LowBatteryPolicy::kDeepSleepMv == 4100);
+    static_assert(LowBatteryPolicy::kCheckIntervalUs == 5000000ULL);
     LowBatteryPolicy policy;
-    assert(policy.observe(3900, 0) == Action::None);
-    assert(policy.observe(3899, 1000) == Action::None);
-    assert(policy.observe(3899, 5999) == Action::None);
-    assert(policy.observe(3899, 6000) == Action::Standby);
-    policy.noteActivity(6000);
-    assert(policy.observe(3800, 65000) == Action::None);
-    assert(policy.observe(3800, 66000) == Action::Standby);
-    assert(policy.observe(3700, 67000) == Action::Standby); // strict deep threshold
-    assert(policy.observe(3699, 68000) == Action::None);
-    policy.noteActivity(69000);
-    assert(policy.observe(3699, 73000) == Action::DeepSleep); // critical overrides wake grace
-    assert(policy.observe(3900, 74000) == Action::None);
-    assert(policy.observe(3699, 75000) == Action::None);
-    assert(policy.observe(0, 79000) == Action::None);
-    assert(policy.observe(3699, 80000) == Action::None);
-    assert(policy.observe(4501, 84000) == Action::None);
-    assert(policy.observe(3699, 85000) == Action::None);
-    assert(policy.observe(3699, 90000) == Action::DeepSleep);
-
+    assert(policy.observe(4100, 0) == Action::None);
+    assert(policy.observe(4099, 1000) == Action::None);
+    assert(policy.observe(4099, 5999) == Action::None);
+    assert(policy.observe(4099, 6000) == Action::DeepSleep);
+    assert(policy.observe(3800, 7000, true) == Action::None);
+    assert(policy.observe(3500, 12000, true) == Action::None);
+    assert(policy.observe(4099, 13000) == Action::None);
+    assert(policy.observe(4099, 18000) == Action::DeepSleep);
+    assert(policy.observe(0, 19000) == Action::None);
+    assert(policy.observe(4099, 20000) == Action::None);
+    assert(policy.observe(4501, 24000) == Action::None);
+    assert(policy.observe(4099, 25000) == Action::None);
+    assert(policy.observe(4100, 30000) == Action::None);
+    assert(policy.observe(4099, 31000) == Action::None);
+    assert(policy.observe(4099, 36000) == Action::DeepSleep);
     LowBatteryPolicy wrap;
-    assert(wrap.observe(3800, UINT32_MAX - 1999) == Action::None);
-    assert(wrap.observe(3800, 3000) == Action::Standby);
-    wrap.noteActivity(UINT32_MAX - 999);
-    assert(wrap.observe(3800, 50000) == Action::None);
-    assert(wrap.observe(3800, 59000) == Action::Standby);
+    assert(wrap.observe(4099, UINT32_MAX - 1999) == Action::None);
+    assert(wrap.observe(4099, 2999) == Action::None);
+    assert(wrap.observe(4099, 3000) == Action::DeepSleep);
+    AmacChargeWakeState wait;
+    assert(!wait.observe(true));
+    wait.begin(false);
+    assert(!wait.observe(false) && wait.observe(true));
+    wait.begin(true);
+    assert(!wait.observe(true)); // Already charging at shutdown cannot wake it.
+    assert(!wait.observe(false));
+    assert(wait.observe(true));
 
     // The optional SOC estimate stays off. Raw protection still initializes ADC.
     BoardBatteryDescription desc = {};

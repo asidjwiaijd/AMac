@@ -438,6 +438,16 @@ class MacControl:
             raise ControlError("invalid POWER response")
         return {key: int(value) if value.lstrip("-").isdigit() else value for key, value in fields.items()}
 
+    def prepare_maintenance(self) -> bool:
+        """Keep the next normal shutdown awake for maintenance; older firmware needs no hold."""
+        try:
+            self.request("POWER MAINTENANCE", "OK POWER MAINTENANCE")
+            return True
+        except ControlError as error:
+            if str(error) == "ERR unknown_command":
+                return False
+            raise
+
     def _boot_request(self, command: str, expected: str) -> str:
         return self.request(f"BOOT {command}", f"OK BOOT {expected}", timeout=15.0)
 

@@ -1,14 +1,14 @@
 # aMac Wi-Fi 设置与 C5 修复记录
 
 P4 通过模组内部 SDIO slot 1 使用 C5 的无线功能，SD 卡使用 slot 0。
-实板当前为 P4 固件 `5.4-beta.1+amac.0.5.3`，C5 为 OSPTEK 发布的
+P4 无线实现沿用固件 `5.4-beta.1+amac.0.5.3` 的修复，C5 为 OSPTEK 发布的
 ESP-Hosted 2.12.9。P4 固定 SDK 中的 host 为 2.12.3，transport 按 C5
 从同版本源码编译；这组版本已经在当前硬件上完成连接和数据传输验证。
 
 ## 连接网络
 
-Mac 正常关机后，通过 USB2 运行 `scripts/maintain_amac.cmd`，选择进入
-维护设置，再打开 Wi-Fi。扫描后选择网络，输入密码并点 Join。连接成功
+通过 USB2 运行 `scripts/maintain_amac.cmd`，先选进入维护设置以准备维护，
+保存并正常关闭 Mac 后再选进入维护设置，随后打开 Wi-Fi。扫描后选择网络，输入密码并点 Join。连接成功
 才保存网络及密码，并开启自动连接；下一次启动会自动关联。
 
 0.5.2 会区分模块启动失败、扫描失败和没有扫描结果。Scan 可以重试；

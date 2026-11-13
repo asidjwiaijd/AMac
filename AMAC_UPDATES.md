@@ -6,7 +6,9 @@
 
 ## 更新固件
 
-1. 若 Mac 正在运行，先在 **Special → Shut Down** 正常关机。
+1. 若 Mac 正在运行，先运行下面的更新工具，工具会准备维护并提示正常关机；
+   在 10 分钟内保存、**Special → Shut Down**，然后重新运行更新工具。
+   这会让本次关机保持 USB 服务。已睡眠时先接充电唤醒，见[关机说明](AMAC_POWER_OFF.md)。
 2. 保持设备供电，用支持数据的线缆连接底板 **USB2**。这是 P4 内部
    USB Serial/JTAG，当前电脑上通常为 COM12。
 3. 双击 [scripts/update_amac.cmd](scripts/update_amac.cmd)。工具自动寻找设备，
@@ -40,8 +42,9 @@ C5 无线协处理器有独立 Flash，日常更新 P4 应用会保留其固件�
 
 ## 更新或备份卡内文件
 
-1. Mac 正常关机后，保持 USB2 连接。
-2. 双击 [scripts/maintain_amac.cmd](scripts/maintain_amac.cmd)，选择“进入维护设置”。
+1. 保持 USB2 连接，双击 [scripts/maintain_amac.cmd](scripts/maintain_amac.cmd)，
+   先选择“进入维护设置”为本次关机准备维护。
+2. 在 10 分钟内保存并正常关闭 Mac，然后再次选择“进入维护设置”。
 3. 选择查看卡内文件、复制文件到设备或备份文件到电脑。
 4. 操作完成后选择“启动 Mac”。
 

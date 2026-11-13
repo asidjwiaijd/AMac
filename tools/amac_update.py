@@ -48,10 +48,12 @@ def update(image,port=None,recovery=False):
         try:
             with MacControl(candidate,reset_on_failure=False) as control:
                 control.connect(timeout=2)
-                phase=control.boot_status()['phase']
+                candidate_phase=control.boot_status()['phase']
+                if candidate_phase in ('emulator','stopped'): control.prepare_maintenance()
+                phase=candidate_phase
                 break
         except (ControlError,OSError): pass
-    if phase=='emulator': raise ValueError('请先在 Mac 的 Special 菜单中正常关机，再更新固件。')
+    if phase=='emulator': raise ValueError('已准备维护。请在 10 分钟内先保存并在 Mac 的 Special 菜单正常关机，再运行更新。')
     if phase not in ('preboot','stopped') and not recovery:
         raise ValueError('无法确认系统已停止。若系统已经无法启动，可使用 --recovery 恢复更新。')
     folder=ROOT/'artifacts/updates'/datetime.now().strftime('%Y-%m-%d_%H%M%S_%f')
