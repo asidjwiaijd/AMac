@@ -72,6 +72,14 @@ def create_merged_binary(source, target, env):
     if missing:
         print(f"[MERGE] Skipping merge - missing files: {', '.join(missing)}")
         return
+
+    if env["PIOENV"] == "amac_p4_rev3":
+        from patch_amac_bootloader import patch_bootloader
+        original = Path(bootloader).read_bytes()
+        patched = patch_bootloader(original)
+        if patched != original:
+            Path(bootloader).write_bytes(patched)
+            print("[BOOT] Applied guarded P4 rev3 DCDC startup wait: 2000 us")
     
     # Create release directory
     os.makedirs(release_dir, exist_ok=True)
@@ -158,6 +166,8 @@ def create_merged_binary(source, target, env):
                                         capture_output=True, text=True)
             metadata["source_commit"] = git_head.stdout.strip() if git_head.returncode == 0 else None
             metadata["source_dirty"] = bool(git_status.stdout.strip()) if git_status.returncode == 0 else None
+            if env["PIOENV"] == "amac_p4_rev3":
+                metadata["bootloader_workaround"] = "aMac P4 rev3 DCDC settling wait 1000 -> 2000 us"
             if env["PIOENV"].startswith("amac_p4_"):
                 metadata["wifi_coprocessor"] = "esp32c5"
                 metadata["hosted_transport_version"] = "2.12.3 (source override)"
