@@ -1,5 +1,7 @@
 # aMac 本地移植
 
+**第一次使用：先读[新手图文指南](AMAC_USER_GUIDE.md)或[23 页 PDF](output/pdf/aMac_User_Guide.pdf)。**
+
 本地目标：OSPTEK ESP32-P4C5，2026-11-02 底板/前板网表，
 HD20034C40-V1（PDF 内型号 HD20034C40-H-V1），480×360 ST7701S MIPI 屏。
 默认构建 `amac_p4_rev3`；移植说明、构建/烧录及待实机验证项目见
@@ -10,7 +12,8 @@ HD20034C40-V1（PDF 内型号 HD20034C40-H-V1），480×360 ST7701S MIPI 屏。
 5 秒时正常关机深睡，并定时检测充电唤醒。使用前请阅读
 [不拆机更新](AMAC_UPDATES.md)、[自动校时](AMAC_TIME.md)、
 [关机与唤醒](AMAC_POWER_OFF.md)及[实测记录](AMAC_VALIDATION.md)。
-电脑键鼠可通过 USB2 发送给设备，见[Windows 桌面控制台](AMAC_DESKTOP_CONTROL.md)。
+电脑键鼠可通过 USB2 发送给设备，见[Windows 桌面控制台](AMAC_DESKTOP_CONTROL.md)，
+独立软件与指南见[下载页](https://github.com/asidjwiaijd/AMac/releases/tag/amac-control-v0.1.0)。
 移植维护：[LitterCarrot (@asidjwiaijd)](https://github.com/asidjwiaijd)。
 历史提交的账号关联修正及版本追溯见[提交署名记录](GIT_IDENTITY.md)。
 下文保留上游项目文档，其 Tab5/Waveshare 固件不能直接用于 aMac。

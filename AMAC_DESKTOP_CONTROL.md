@@ -3,6 +3,9 @@
 桌面软件版本 0.1.0，配合已实测的 aMac 0.6.3 固件。电脑鼠标和键盘通过
 USB2 发送给正在运行的 Mac，控制时观察设备屏幕。无需重新烧录固件。
 
+[下载独立软件](https://github.com/asidjwiaijd/AMac/releases/tag/amac-control-v0.1.0)
+· [图文新手指南](AMAC_USER_GUIDE.md)
+
 ## 使用
 
 1. 保持电池与 USB1 供电/充电连接，用数据线把 USB2 接到 Windows 电脑。
@@ -59,6 +62,12 @@ python tools/amac_control_app.py
 本次使用 Python 3.13.9、PyInstaller 6.19.0。输出为
 `release/desktop/aMac-Control.exe`，旁置 JSON 记录版本、源码状态和 SHA-256。
 构建中间文件位于 `artifacts/desktop-control/`。
+
+2026-11-13：独立 EXE 已实际运行并连接 P4，用户确认可以用电脑键鼠操作
+Mac 并按退出组合键正常释放。112 项回归测试通过，含 12 项新增输入路由、
+队列顺序、修饰键计数和连接异常检查。窗口已按本机 DPI 调整，全部控件可见。
+正常界面与捕获界面均检查；失焦、Alt+Tab 和持续低延迟表现仍取决于系统
+调度及实际运行环境，不将 8 ms 指针轮询目标当作端到端延迟保证。
 
 通信复用 `MacControl` 的带序号协议，连接时禁止自动复位；单独工作线程
 持有串口，连续移动合并发送，按键/点击边沿保持顺序。别名按键独立计数，

@@ -12,6 +12,7 @@ docs/
 build/
 release/
 artifacts/
+tmp/pdfs/
 worktrees/
 
 # IDE settings

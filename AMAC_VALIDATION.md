@@ -1,5 +1,40 @@
 # aMac 验证记录
 
+## Windows 键鼠控制台 0.1.0 与图文新手指南
+
+2026-11-13，设备固件仍为 0.6.3，本次无需重新烧录。新增独立 Windows
+控制台，通过 USB2 和原有带序号协议转发前台捕获会话中的键鼠输入。
+点击“开始控制”才安装捕获，Ctrl+Alt+Esc 释放；退出、失焦和断线清理
+按键与按钮状态。串口只有一个工作线程持有，禁止连接时自动复位。
+连续位移合并且不跨越点击/按键边沿；输入积压过久或溢出停止捕获并释放。
+
+完整 **112 项回归通过，138.881 秒**，包括 12 项新增桌面输入检查。
+新增检查覆盖未开始/已退出时拒收、左右修饰键独立计数、重复按下、
+位移与点击顺序、慢速小数位移、右键与实体 Ctrl/左键重叠、Ctrl 转 Command、
+队列溢出、滚轮与持有方向键、连接禁止复位、断线释放及不重放过期输入。
+后续 GUI 调整通过源码启动检查和实际独立程序界面检查。
+
+最终 EXE 从干净源码 `4e4cfc69bd1b21eac67f48b17e36cf3f16072f9a` 打包，
+Python 3.13.9 / PyInstaller 6.19.0，Windows x64，12743717 字节：
+
+```text
+aMac-Control.exe
+18265c7e2cb754bd551cedd72e8df89b871dcf29749b4c6fd0cdf147b7081de2
+```
+
+实际启动独立 EXE，检查自动识别、连接、完整高 DPI 窗口和捕获界面。
+用户明确确认“可以正常控制并退出”；随后观察到控制台正在捕获且显示
+已发送 228 条输入指令，截图用于指南。此项为用户实机确认，未据此宣称
+已测量精确的键鼠延迟或验证全部系统级快捷键。连接中不运行截图轮询。
+证据：`artifacts/desktop-control-full-tests.log`、`artifacts/desktop-control-tests.log`、
+`artifacts/desktop-control-build.log`、`artifacts/desktop-control/console-connected.png`，
+发布 JSON 为 `release/desktop/aMac-Control.json`。
+
+新增 [23 页图文新手指南](output/pdf/aMac_User_Guide.pdf)及
+[Markdown 正文](AMAC_USER_GUIDE.md)，含 18 节、11 幅插图、目录与书签。
+逐页渲染检查，保留彩蛋线索，不列完整触发答案。图片出处、再生成方式见
+[指南资料](guide/README.md)。文档生成与校验记录在 `artifacts/user-guide/`。
+
 ## 0.6.3：自动网络校时与 ROM 写时修复（已安装，联网与重连实测通过）
 
 2026-11-13，固件 `5.4-beta.1+amac.0.6.3`，干净源码提交
