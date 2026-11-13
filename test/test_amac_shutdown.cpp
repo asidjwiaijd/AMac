@@ -79,6 +79,7 @@ static void reset()
     charger_wait={};policy={};pending=LowBatteryAction::None;
     shutdown_requested=shutdown_complete=automatic_shutdown=poweroff_in_progress=maintenance_hold=sampled=false;
     maintenance_since=shutdown_at=last_sample=last_shutdown_attempt=0;pack_mv=0;
+    shutdown_attempts=0;shutdown_error=0;
     wake_reason="cold";charge_checks=0;low_battery_control_pending=false;
 }
 template<class F> static void slept(F action)
@@ -97,6 +98,8 @@ int main()
     now_ms=7000;LowBatteryPoll();assert(LowBatteryDeepSleepRequested());
     has_mac=false;LowBatteryGuestIdle();assert(shutdown_calls==0);
     has_mac=true;LowBatteryGuestIdle();assert(shutdown_calls==1);
+    char status[128];LowBatteryDescribe(status,sizeof(status));
+    assert(std::string(status)=="off_pending=1 off_requested=1 off_attempts=1 off_error=0");
     LowBatteryEnterAfterShutdown();assert(sd_ends==0); // A save/cancel dialog is not PowerOff.
     LowBatteryGuestShutdown();
     slept([]{LowBatteryEnterAfterShutdown();});

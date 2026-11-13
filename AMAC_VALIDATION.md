@@ -1,5 +1,24 @@
 # aMac 验证记录
 
+## 0.6.4：低电压关机回调修复（实机验证待完成）
+
+2026-11-13，用户反馈 0.6.3 在未充电、约 3.90 V 时仍保持 Mac 桌面。
+COM12 连续实际采样为 3900–3904 mV、`raw_valid=1`、`raw_charging=0`；
+截图为 After Dark 屏保，Shift 唤回 Finder 后仍未关机，没有保存对话框。
+证据保存在 `artifacts/low-voltage/2026-11-13/`。
+
+根因：`LowBatteryGuestIdle` 只在 `M68K_EMUL_OP_IDLE_TIME` 中执行，
+但资源补丁 `patch_idle_time` 受 `PrefsFindBool("idlewait")` 控制。
+ESP32 的偏好默认和加载流程均没有设置这个键，查询结果为 false，
+因此正常运行中没有机会发送自动关机事件。冷启动低电压检查和手动
+Shut Down 后的深睡不走这条路径，之前的充电唤醒实测未覆盖此缺陷。
+
+现在仅在 aMac 强制安装安全空闲回调；是否主动 yield 仍由 idlewait
+控制，不改变其他板型的补丁开关。新增生产资源补丁与实际 idle opcode
+的联合回归，覆盖 idlewait 关闭/开启、其他板型、待处理事件和短资源
+边界，并在 ASan/UBSan 下通过。针对性 21 项检查通过，2.380 秒。
+增加 POWER 只读关机诊断字段；不添加运行中强制掉电路径。
+
 ## Windows 键鼠控制台 0.1.0 与图文新手指南
 
 2026-11-13，设备固件仍为 0.6.3，本次无需重新烧录。新增独立 Windows

@@ -1,4 +1,4 @@
-# aMac 关机与充电唤醒（0.6.2）
+# aMac 关机与充电唤醒（0.6.4）
 
 当前策略使用 GPIO22 实测电池电压、GPIO21 的 CHRG 充电信号：
 
@@ -44,6 +44,13 @@ GPIO21 不是 P4 的深睡唤醒引脚，且板上没有独立 VBUS 接入检测
 如果已进入深睡，可插上 USB1 使充电唤醒后再准备维护，或用 RESET 重新
 启动。低电池冷启动仍会执行 4.10 V 保护；请先接入充电。
 
+0.6.4 修复了运行中的低电压关机入口：此前入口依赖默认未启用的
+`idlewait`，电压虽然持续采样，Finder 关机请求却无法触发。现在 aMac
+始终安装 Mac 的安全空闲回调，CPU 主动让出仍由原设置控制。
+
+协议 `POWER` 另提供 `off_pending`（已满足低电压条件）、
+`off_requested`（Finder 已接受请求）、`off_attempts`（本次开机请求次数）、
+`off_error`（最近请求的 OSErr），用于区分未触发和等待应用退出。
 协议 `POWER MAINTENANCE` 准备维护，`POWER` 的 `off_wake` 报告
 `cold`、`charge` 或 `sleep_failed`，`off_checks` 记录本次开机之前的
 RTC 检查次数。`POWER SIM` 不替代实际电压或充电信号。

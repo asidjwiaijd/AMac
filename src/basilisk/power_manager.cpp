@@ -727,6 +727,8 @@ int PowerManagerDescribe(char *buffer, size_t size)
 #if defined(BOARD_AMAC_P4)
 	AmacBatteryTelemetry raw;
 	AmacBatteryGetTelemetry(&raw);
+	char shutdown_state[128];
+	LowBatteryDescribe(shutdown_state, sizeof(shutdown_state));
 #endif
 	BoardBatteryStatus st = {};
 	const bool battery = BoardPower_GetBattery(&st);
@@ -743,7 +745,7 @@ int PowerManagerDescribe(char *buffer, size_t size)
 		"calls=%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu"
 #if defined(BOARD_AMAC_P4)
 		" raw_mv=%u raw_valid=%d raw_charging=%d raw_chrg_low=%d raw_age_ms=%lu raw_samples=%lu"
-		" off_wake=%s off_checks=%lu"
+		" off_wake=%s off_checks=%lu %s"
 #endif
 		,
 		pm_enabled ? 1 : 0, services_installed ? 1 : 0, battery ? 1 : 0,
@@ -762,7 +764,7 @@ int PowerManagerDescribe(char *buffer, size_t size)
 #if defined(BOARD_AMAC_P4)
 		, raw.pack_mv, raw.voltage_valid ? 1 : 0, (int)raw.charging, (int)raw.chrg_low,
 		(unsigned long)(raw.samples ? (uint32_t)(millis() - raw.sample_ms) : 0),
-		(unsigned long)raw.samples, LowBatteryWakeReason(), (unsigned long)LowBatteryChargeChecks()
+		(unsigned long)raw.samples, LowBatteryWakeReason(), (unsigned long)LowBatteryChargeChecks(), shutdown_state
 #endif
 		);
 }

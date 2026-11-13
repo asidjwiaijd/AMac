@@ -27,6 +27,7 @@
 #include "macos_util.h"
 #include "rom_patches.h"
 #include "rsrc_patches.h"
+#include "prefs.h"
 #include "xpram.h"
 #include "adb.h"
 #include "timer.h"
@@ -748,7 +749,7 @@ void EmulOp(uint16 opcode, M68kRegisters *r)
 			LowBatteryGuestIdle();
 #endif
 			// Sleep if no events pending
-			if (ReadMacInt32(0x14c) == 0)
+			if (ReadMacInt32(0x14c) == 0 && PrefsFindBool("idlewait"))
 				idle_wait();
 			r->a[0] = ReadMacInt32(0x2b6);
 			break;

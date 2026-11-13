@@ -41,6 +41,8 @@ bool sampled = false;
 uint16_t pack_mv = 0;
 uint32_t last_sample = 0;
 uint32_t last_shutdown_attempt = 0;
+uint32_t shutdown_attempts = 0;
+int16_t shutdown_error = 0;
 const char *wake_reason = "cold";
 uint32_t charge_checks = 0;
 constexpr uint32_t kManualOffGraceMs = 10000;
@@ -87,6 +89,18 @@ void enterDeepSleep()
 
 const char *LowBatteryWakeReason() { return wake_reason; }
 uint32_t LowBatteryChargeChecks() { return charge_checks; }
+
+void LowBatteryDescribe(char *buffer, size_t size)
+{
+    portENTER_CRITICAL(&state_lock);
+    const bool deep = pending == LowBatteryAction::DeepSleep;
+    const bool requested = shutdown_requested;
+    const uint32_t attempts = shutdown_attempts;
+    const int16_t error = shutdown_error;
+    portEXIT_CRITICAL(&state_lock);
+    snprintf(buffer, size, "off_pending=%d off_requested=%d off_attempts=%lu off_error=%d",
+             deep, requested, (unsigned long)attempts, error);
+}
 
 void LowBatteryBootCheck()
 {
@@ -190,6 +204,8 @@ void LowBatteryGuestIdle()
     BirthdayGift_Close();
     const int16_t err = MacRequestShutdown();
     portENTER_CRITICAL(&state_lock);
+    ++shutdown_attempts;
+    shutdown_error = err;
     shutdown_requested = err == 0;
     portEXIT_CRITICAL(&state_lock);
     Serial.printf("[POWER] Battery below 4100 mV and not charging: Finder shutdown request, result=%d\n", err);

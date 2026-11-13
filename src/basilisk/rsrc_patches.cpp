@@ -63,12 +63,18 @@ static uint32 find_rsrc_data(const uint8 *rsrc, uint32 max, const uint8 *search,
 
 static void patch_idle_time(uint8 *p, uint32 size, int n = 1)
 {
+#if !defined(BOARD_AMAC_P4)
 	if (!PrefsFindBool("idlewait"))
+		return;
+#endif
+	// aMac also uses this guest event-loop boundary for safe low-battery
+	// shutdown. Install it even when the optional idle CPU yield is disabled.
+	if (size < 0x80 + 4)
 		return;
 
 	static const uint8 dat[] = {0x70, 0x03, 0xa0, 0x9f};
 	uint32 base = find_rsrc_data(p, size, dat, sizeof(dat));
-	if (base) {
+	if (base >= 0x80) {
 		uint8 *pbase = p + base - 0x80;
 		static const uint8 dat2[] = {0x20, 0x78, 0x02, 0xb6, 0x41, 0xe8, 0x00, 0x80};
 		base = find_rsrc_data(pbase, 0x80, dat2, sizeof(dat2));

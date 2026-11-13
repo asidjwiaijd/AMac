@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stddef.h>
 
 enum class LowBatteryAction { None, DeepSleep };
 
@@ -43,4 +44,5 @@ void LowBatteryEnterAfterShutdown();            // after all emulator tasks stop
 bool LowBatteryPrepareMaintenance();            // one shutdown, expires after 10 min
 const char *LowBatteryWakeReason();             // cold, charge, sleep_failed
 uint32_t LowBatteryChargeChecks();              // RTC checks before this boot
+void LowBatteryDescribe(char *buffer, size_t size); // read-only shutdown diagnostics
 #endif
