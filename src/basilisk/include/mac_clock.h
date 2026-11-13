@@ -36,6 +36,8 @@ private:
 
 uint32_t TimerDateTime(void);
 void TimerWriteRTCByte(unsigned reg, uint8_t value);
+// Called only by the main/emulator task, including preboot network sync.
+void MacClockSetLocal(uint32_t seconds, uint32_t fraction_us = 0);
 // Called on the emulator task, outside the RTC trap; force on clean shutdown.
 void MacClockSave(bool force = false);
 #if defined(BOARD_AMAC_P4)

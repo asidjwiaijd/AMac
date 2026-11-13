@@ -882,6 +882,13 @@ static void processLegacyCommand(char *command)
         }
         return;
     }
+    if (!strcmp(command, "TIME") || !strcmp(command, "TIME STATUS")) {
+        char reply[600];
+        if (BootGUI_ControlRequest("TIME STATUS", reply, sizeof(reply)))
+            protocolReply("@B2 %s\n", reply);
+        else protocolReply("@B2 ERR TIME unavailable\n");
+        return;
+    }
     if (strncmp(command, "SD ", 3) == 0) {
         char reply[600];
         if (BootGUI_ControlRequest(command, reply, sizeof(reply))) protocolReply("@B2 %s\n", reply);

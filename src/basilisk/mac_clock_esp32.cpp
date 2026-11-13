@@ -113,6 +113,13 @@ uint32_t TimerDateTime(void) {
     return clock_state.read(esp_timer_get_time());
 }
 
+void MacClockSetLocal(uint32_t seconds, uint32_t fraction_us) {
+    initialize_clock();
+    clock_state.set(seconds, esp_timer_get_time(), fraction_us);
+    user_set = true;
+    dirty = true;
+}
+
 void TimerWriteRTCByte(unsigned reg, uint8_t value) {
     initialize_clock();
     if (clock_state.writeByte(reg, value, esp_timer_get_time())) {
