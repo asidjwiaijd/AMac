@@ -24,7 +24,8 @@ RTC 计时，见[自动校时说明](AMAC_TIME.md)。保留 0.6.2 的深睡及�
 - 上游：[amcchord/M5Tab-Macintosh](https://github.com/amcchord/M5Tab-Macintosh)，
   提交 `3641580d72982cec464d4800f2ead507ba7c687d`，保留完整 Git 历史。
 - 工作分支：`amac/esp32p4-hd20034`。原始基线标签：`amac/upstream-2026-11-03`。
-- 上游 remote 命名为 `upstream`；本次只有本地提交，没有发布到上游。
+- 原作者 remote 命名为 `upstream`，未向其推送；个人仓库 `origin` 为
+  [asidjwiaijd/AMac](https://github.com/asidjwiaijd/AMac)，保留移植历史和版本标签。
 - 输入：`Netlist_sch_bottom_2026-11-02.tel`、
   `Netlist_sch_front_2026-11-02-1.tel`，快照与逐段连线见
   [hardware/README.md](hardware/README.md)。不使用较旧网表。
