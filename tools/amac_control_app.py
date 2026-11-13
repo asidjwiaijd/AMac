@@ -41,8 +41,11 @@ class ControlApp:
     def _build_ui(self):
         r = self.root
         r.title(f"aMac 键鼠控制台 {APP_VERSION}")
-        r.geometry("840x620")
-        r.minsize(740, 560)
+        dpi_scale = max(1.0, r.winfo_fpixels("1i") / 96.0)
+        width = min(round(840*dpi_scale), r.winfo_screenwidth()-60)
+        height = min(round(700*dpi_scale), r.winfo_screenheight()-90)
+        r.geometry(f"{width}x{height}")
+        r.minsize(min(round(740*dpi_scale), width), min(round(650*dpi_scale), height))
         r.configure(bg="#f5f6fa")
         assets = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1])) / "assets"
         icon = assets / "happymacIcon.png"
@@ -191,6 +194,14 @@ class ControlApp:
 
     def _button(self, button, down):
         if self.session and self.session.active:
+            # A click can arrive between two pointer polls. Preserve the
+            # final movement before its button edge, including fast drags.
+            if self.native:
+                motion = self.native.poll()
+                if motion is None:
+                    self.end("窗口已失去焦点，键鼠已释放。", restore=False)
+                    return
+                self.session.motion(*motion, sensitivity=self.sensitivity.get())
             self.session.button(button, down)
 
     def _wheel(self, event):
