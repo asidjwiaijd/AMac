@@ -45,7 +45,9 @@ def main():
             with connect() as client:
                 status=client.boot_status()
                 if choice in ('1','2','3','4') and status['phase']=='emulator':
-                    print('请先在 Mac 的 Special 菜单中正常关机，再选择“进入维护设置”。');continue
+                    client.prepare_maintenance()
+                    print('已准备维护。请在 10 分钟内先保存并在 Mac 的 Special 菜单正常关机，再选择“进入维护设置”。');continue
+                if status['phase']=='stopped': client.prepare_maintenance()
                 if choice=='4': client.boot_enter();print('已进入维护设置。');continue
                 if choice in ('1','2','3') and status['phase']!='preboot':
                     print('请先选择“进入维护设置”。');continue
