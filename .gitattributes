@@ -9,6 +9,8 @@ examples/amac-desktop/basilisk_ii_prefs text eol=lf
 examples/amac-desktop/birthday_bridge.* text eol=lf
 examples/amac-desktop/birthday_desktop_control.cpp text eol=lf
 guest/birthday/dist/*.bin -text
+# Preserve PDF byte offsets even when ASCII85 streams resemble plain text.
+output/pdf/*.pdf -text -diff
 scripts/build_amac_desktop.sh text eol=lf
 scripts/install_birthday_desktop.sh text eol=lf
 scripts/prepare_amac_browser.sh text eol=lf
