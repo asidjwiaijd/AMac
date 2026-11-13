@@ -24,6 +24,18 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(env.subst("$PROJECT_DIR"), "scripts"))
 from release_images import TARGETS, validate_merged
+from patch_amac_bootloader import patch_bootloader
+
+
+def prepare_amac_bootloader(source, target, env):
+    if env["PIOENV"] != "amac_p4_rev3":
+        return
+    path = Path(env.subst("$BUILD_DIR"), "bootloader.bin")
+    original = path.read_bytes()
+    patched = patch_bootloader(original)
+    if patched != original:
+        path.write_bytes(patched)
+        print("[BOOT] Applied guarded P4 rev3 DCDC startup wait: 2000 us")
 
 def create_merged_binary(source, target, env):
     """Create a merged binary after successful build."""
@@ -74,7 +86,6 @@ def create_merged_binary(source, target, env):
         return
 
     if env["PIOENV"] == "amac_p4_rev3":
-        from patch_amac_bootloader import patch_bootloader
         original = Path(bootloader).read_bytes()
         patched = patch_bootloader(original)
         if patched != original:
@@ -193,4 +204,8 @@ def create_merged_binary(source, target, env):
         raise RuntimeError(f"Failed to create merged firmware: {e}") from e
 
 # Register post-build action
+if env["PIOENV"] == "amac_p4_rev3":
+    # Also fix the framework's factory image, which is emitted before our merge.
+    env.Depends("$BUILD_DIR/firmware.bin", "$BUILD_DIR/bootloader.bin")
+    env.AddPreAction("$BUILD_DIR/firmware.bin", prepare_amac_bootloader)
 env.AddPostAction("$BUILD_DIR/firmware.bin", create_merged_binary)
