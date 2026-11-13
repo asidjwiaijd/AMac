@@ -3,11 +3,12 @@ $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $ProjectRoot
 try {
+    $Icon = Join-Path $ProjectRoot 'assets/happymacIcon.png'
     & $Python -m PyInstaller --version
     if ($LASTEXITCODE -ne 0) { throw '请先安装 PyInstaller 和 pyserial，并确认 Python 包含 tkinter。' }
     & $Python -m PyInstaller --noconfirm --clean --onefile --windowed `
         --name aMac-Control --paths tools --hidden-import serial.tools.list_ports `
-        --icon assets/happymacIcon.png --add-data 'assets/happymacIcon.png;assets' `
+        --icon $Icon --add-data ($Icon + ';assets') `
         --distpath release/desktop --workpath artifacts/desktop-control/build `
         --specpath artifacts/desktop-control tools/amac_control_app.py
     if ($LASTEXITCODE -ne 0) { throw '桌面控制台打包失败。' }
