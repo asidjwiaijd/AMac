@@ -444,7 +444,9 @@ class MacControl:
             self.request("POWER MAINTENANCE", "OK POWER MAINTENANCE")
             return True
         except ControlError as error:
-            if str(error) == "ERR unknown_command":
+            # Older firmware rejects unrecognized commands with not-ready
+            # after guest shutdown, before it reaches unknown_command.
+            if str(error) in ("ERR unknown_command", "ERR emulator_not_ready"):
                 return False
             raise
 

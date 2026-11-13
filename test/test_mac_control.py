@@ -161,6 +161,8 @@ class SerialTransportTests(unittest.TestCase):
         self.assertEqual(c.serial.commands, [b"@B2 POWER MAINTENANCE\n"])
         c = self.control([b"@B2 ERR unknown_command\n"])
         self.assertFalse(c.prepare_maintenance())
+        c = self.control([b"@B2 ERR emulator_not_ready\n"])
+        self.assertFalse(c.prepare_maintenance())
         c = self.control([b"@B2 ERR POWER powering_off\n"])
         with self.assertRaisesRegex(mac_control.ControlError, 'powering_off'):
             c.prepare_maintenance()
