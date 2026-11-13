@@ -10,6 +10,8 @@ HD20034C40-V1（PDF 内型号 HD20034C40-H-V1），480×360 ST7701S MIPI 屏。
 5 秒时正常关机深睡，并定时检测充电唤醒。使用前请阅读
 [不拆机更新](AMAC_UPDATES.md)、[自动校时](AMAC_TIME.md)、
 [关机与唤醒](AMAC_POWER_OFF.md)及[实测记录](AMAC_VALIDATION.md)。
+移植维护：[LitterCarrot (@asidjwiaijd)](https://github.com/asidjwiaijd)。
+历史提交的账号关联修正及版本追溯见[提交署名记录](GIT_IDENTITY.md)。
 下文保留上游项目文档，其 Tab5/Waveshare 固件不能直接用于 aMac。
 
 # BasiliskII ESP32 — Classic Macintosh Emulator
