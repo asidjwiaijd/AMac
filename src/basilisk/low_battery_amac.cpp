@@ -64,8 +64,6 @@ void enterDeepSleep()
         Serial.printf("[POWER] RTC wake timer failed: %s\n", esp_err_to_name(timer));
         return;
     }
-    const uint32_t awake_mhz = getCpuFrequencyMhz();
-    if (!setCpuFrequencyMhz(80)) Serial.println("[POWER] Could not lower CPU clock for sleep");
     MacClockPrepareDeepSleep();
     pinMode(AMAC_WIFI_RESET_GPIO, OUTPUT);
     digitalWrite(AMAC_WIFI_RESET_GPIO, LOW);
@@ -83,7 +81,6 @@ void enterDeepSleep()
     charger_wait.active = false;
     wake_reason = "sleep_failed";
     releaseSleepPins();
-    setCpuFrequencyMhz(awake_mhz);
     Serial.printf("[POWER] Deep sleep rejected: %s\n", esp_err_to_name(err));
 }
 } // namespace

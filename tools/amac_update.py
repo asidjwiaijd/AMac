@@ -10,7 +10,9 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'.pio-core/tools/esptool-5.3.1'))
+sys.path.insert(0,str(ROOT/'scripts'))
 from mac_control import MacControl, ControlError
+from patch_amac_bootloader import image_layout, paired_bootloader
 
 
 def load_application(image):
@@ -28,6 +30,32 @@ def load_application(image):
     return metadata,merged,application
 
 
+def load_bootloader(metadata,merged):
+    boot=merged[0x2000:0x8000]
+    if len(boot)<24 or boot[0]!=0xe9 or not 1<=boot[1]<=16:
+        raise ValueError('固件中的引导程序无效。')
+    position=24
+    for _ in range(boot[1]):
+        if position+8>len(boot): raise ValueError('引导程序不完整。')
+        size=int.from_bytes(boot[position+4:position+8],'little')
+        position+=8+size
+        if position>len(boot): raise ValueError('引导程序越界。')
+    length=(position+16)//16*16+32
+    result=boot[:length]
+    image_layout(result)
+    if hashlib.sha256(result).hexdigest()!=metadata['components'].get('bootloader.bin'):
+        raise ValueError('引导程序与版本记录不匹配。')
+    return result
+
+
+def bootloader_migration(target,current_md5):
+    if hashlib.md5(target).hexdigest()==current_md5: return None
+    previous=paired_bootloader(target)
+    if hashlib.md5(previous).hexdigest()!=current_md5:
+        raise ValueError('当前引导程序不属于已验证的升级/回退版本，已停止更新。')
+    return previous
+
+
 def update(image,port=None,recovery=False):
     import serial
     from serial.tools import list_ports
@@ -37,6 +65,7 @@ def update(image,port=None,recovery=False):
     from esptool.loader import ESPLoader
     if esptool.__version__!='5.3.1': raise ValueError('本项目需要独立安装的 esptool 5.3.1。')
     metadata,merged,application=load_application(image)
+    bootloader=load_bootloader(metadata,merged)
     ports=list(list_ports.comports())
     native=[p.device for p in ports if p.vid==0x303a and p.pid==0x1001]
     if port is None:
@@ -77,6 +106,15 @@ def update(image,port=None,recovery=False):
         cmds.attach_flash(esp)
         if esp.flash_md5sum(0x8000,0x1000)!=hashlib.md5(merged[0x8000:0x9000]).hexdigest():
             raise ValueError('分区布局不同，不能使用保留数据的应用更新。')
+        previous_boot=bootloader_migration(bootloader,esp.flash_md5sum(0x2000,len(bootloader)))
+        record['bootloader_changed']=previous_boot is not None
+        if previous_boot is not None:
+            # Only the exact known stock/2000-us pair is supported. The ROM
+            # digest above independently proves the rollback bytes match flash.
+            (folder/'previous-bootloader.bin').write_bytes(previous_boot)
+            record['bootloader_backup_sha256']=hashlib.sha256(previous_boot).hexdigest()
+            record['bootloader_sha256']=hashlib.sha256(bootloader).hexdigest()
+            save()
         size=(len(application)+4095)//4096*4096
         original=bytearray()
         print('正在备份现有固件…',flush=True)
@@ -124,12 +162,17 @@ def update(image,port=None,recovery=False):
         writing=True
         cmds.write_flash(esp,[(0x10000,application)],flash_mode='keep',flash_freq='keep',
                          flash_size='keep',compress=True,no_progress=True)
+        if previous_boot is not None:
+            print('正在更新已备份并验证的引导程序等待时序…',flush=True)
+            cmds.write_flash(esp,[(0x2000,bootloader)],flash_mode='keep',flash_freq='keep',
+                             flash_size='keep',compress=True,no_progress=True)
         # Verify independently through ROM, avoiding the streaming readback
         # failure seen on this P4 v3.2. SD, NVS and bootloader are untouched.
         connection.close();connection.open()
         esp=ESP32P4ROM(connection);esp.connect(mode='usb-reset',attempts=3)
         if record['mac']!=':'.join(f'{b:02x}' for b in esp.read_mac()): raise ValueError('设备身份改变。')
-        cmds.attach_flash(esp);cmds.verify_flash(esp,[(0x10000,application)])
+        cmds.attach_flash(esp);cmds.verify_flash(esp,[(0x10000,application),(0x2000,bootloader)])
+        record['bootloader_verified']=True
         record['verified']=True;record['application_sha256']=hashlib.sha256(application).hexdigest();save()
         print('更新与独立校验完成，正在重启。',flush=True)
         # Native RTS reset boots cleanly on this P4 v3.2. A watchdog reset
