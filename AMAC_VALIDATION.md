@@ -1,59 +1,108 @@
 # aMac 验证记录
 
-## 0.6.0：4.1 V 深睡与充电唤醒（软件通过，等待 USB2 实测）
+## 0.6.2：4.1 V 深睡策略与充电唤醒（已安装，实板充电唤醒通过）
 
-2026-11-13，源码提交 `d28aee57eae48de48cd08ef66b64cd3eab75e486`。
-按用户最新要求取消 3.9 V 熄屏待机和 3.7 V 深睡两档，改为未充电且
-严格低于 4100 mV 连续 5 秒后请求 Finder 正常关机，实际 PowerOff 后
-直接深睡。充电中暂停自动低电压关机，以免充电唤醒后反复睡回去。
-主动关机也进入深睡，清理后预留 10 秒维护窗口。
+2026-11-13，固件 `5.4-beta.1+amac.0.6.2`，源码提交
+`5d371168b2344ddfd21e43c7566932ce28d4fe49`，版本标签
+`amac-v0.6.2-charger-wake`。后续验证文档提交不改变固件。
 
-深睡每 5 秒检查 GPIO21，新的充电信号经 100 ms 再确认后启动；关机时
-已充电或电压无效则先等到一次有效的未充电状态，再允许充电唤醒。
-电压回升不再自动启动。RTC 检查保持 C5/LCD 复位，不初始化 SD、屏幕
-或无线。`POWER MAINTENANCE` 为下一次手动关机准备保留 USB，10 分钟
-内有效；低电压自动关机优先。维护工具、更新工具均接入此准备步骤。
-行为、硬件限制和操作步骤见 [关机与充电唤醒](AMAC_POWER_OFF.md)。
+按用户最新要求取消 3.9 V 熄屏待机和 3.7 V 深睡两档，改为**未充电且
+严格低于 4100 mV 连续 5 秒**后请求 Finder 正常关机；收到实际 PowerOff、
+卸载磁盘后直接深睡。充电中暂停自动低电压关机。主动关机也进入深睡，
+清理后预留 10 秒维护窗口。保存/取消对话框仍需用户处理，不强制断电。
 
-完整 94 项回归通过，130.284 秒，支持的检查启用 ASan/UBSan。
-最终补充无效初始采样的保守唤醒处理后，再运行 4 项定向检查通过，
-6.354 秒。新增检查编译生产 `low_battery_amac.cpp` 全部函数和状态，
-仅替换 SDK 头与硬件调用；覆盖真正 PowerOff 前不关闭 SD、4.1 V
-边界、防抖、充电抑制、重复深睡、RTC 检查保持外设复位、确认充电
-唤醒、已插电关机、无效采样不解除等待、维护窗口、截图锁竞争、
-睡眠拒绝及恢复。另验证 USB 维护命令兼容旧固件并传播真正错误。
+RTC 每 5 秒检查实际电压与 GPIO21，新的充电信号经 100 ms 再确认后
+启动。关机时已充电或电压无效，先等待一次有效的未充电状态。电压回升
+不再自动开机。检查保持 LCD/C5 复位，不初始化 SD、显示或无线。
+`POWER MAINTENANCE` 为下一次手动关机保留 USB，有效期 10 分钟，
+低电压自动关机仍优先。行为与限制见[关机与充电唤醒](AMAC_POWER_OFF.md)。
 
-两份镜像均从上述干净源码构建，`source_dirty=false`：
+### 实板结果与引导修复
+
+初版 0.6.0 软件检查通过，但安装后在 RTC 唤醒、应用入口前出现
+`HP_SYS_HP_WDT_RESET`；不能作为硬件可用版本。只运行定时深睡的
+最小 SDK 程序也复现，排除了 Mac、SD、显示和无线初始化的影响。
+JTAG 捕获的栈位于引导阶段 `bootloader_clock_configure` / `rtc_clk_init`。
+0.6.1 尝试的 80 MHz 切换被此 SDK 拒绝，最终版已移除该无效尝试。
+
+0.6.2 将固定 SDK 的生产版引导程序 DCDC 稳定等待从 1000 µs 延长到
+2000 µs，不修改电压或电源寄存器操作。对整个原始镜像摘要严格匹配，
+重算 ESP 校验及 SHA-256；未知镜像拒绝套用。最小程序实板连续 **30 次**
+RTC 深睡唤醒通过，计数 1–30、复位原因均为 DEEPSLEEP、唤醒原因均为
+TIMER，没有再次出现 HP WDT。该时序调整未用示波器测量电源波形。
+
+最终固件经 USB2 COM12 安装到 P4 v3.2。新更新工具实测完成已知旧引导
+到修复引导的迁移，先核对目标 ROM 摘要并保存旧应用/引导副本，随后
+写入应用 `0x10000` 和引导 `0x2000`，两个区域的独立 ROM 复验均通过。
+更新记录：`artifacts/updates/2026-11-13_132121_599697/result.json`，
+`verified=true`、`bootloader_changed=true`、`bootloader_verified=true`。
+未重写分区表、NVS、C5 固件或 SD 镜像。
+
+最终整机测试在 Finder 正常关机，协议确认 `phase=stopped` 后自动深睡。
+用户按要求拔掉 USB1，保留电池与 USB2，等待超过两个检查周期后接回
+USB1。重新启动的会话为 `0EEADBCE`，返回：
+
+```text
+off_wake=charge off_checks=18 raw_mv=4220 raw_valid=1 raw_charging=1
+```
+
+RTC 保留的 18 次检查记录及 `charge` 原因确认充电唤醒成功；串口包含
+9 次 PMU 深睡复位记录，没有 HP WDT。USB1 插回后正常初始化
+SD、LCD、C5 和 Mac，磁盘检查返回 Volume OK。随后读取仍为同一会话，
+`raw_mv=4230`、`raw_charging=1`、采样年龄 271 ms。480×360 彩色截图
+确认已进入 Finder，壁纸、Start Here、For You 图标均正常，设备留在桌面。
+USB1、USB2、电池保持连接，SW1 在 P4。
+
+### 软件、构建与发布
+
+最终完整 **98 项回归通过，135.424 秒**，支持的 C++ 检查启用 ASan/UBSan。
+检查编译实际生产 `low_battery_amac.cpp`，仅替换 SDK 头与硬件调用，
+覆盖 PowerOff 前不卸载 SD、严格 4.1 V 边界、5 秒防抖、充电抑制、
+保存/取消、重复深睡、外设复位保持、充电二次确认、已插电关机后重新
+布防、无效采样、维护期限、显示锁竞争、深睡拒绝及恢复。工具检查旧
+固件兼容、引导修改范围、校验完整性、确切版本迁移及未知引导拒绝。
+
+两份最终镜像均由上述干净源码构建，`source_dirty=false`：
 
 | 环境 | 构建 | 合并镜像字节数 | 最低 revision |
 | --- | --- | ---: | --- |
-| `amac_p4_rev3` | SUCCESS，57.082 秒 | 1957584 | 3.1 |
-| `amac_p4_es` | SUCCESS，58.536 秒 | 1954816 | 0.1 |
+| `amac_p4_rev3` | SUCCESS，9.929 秒 | 1957584 | 3.1 |
+| `amac_p4_es` | SUCCESS，10.567 秒 | 1954816 | 0.1 |
 
 ```text
 aMac-P4C5-HD20034-Rev3.bin
-11e2f6e4d02acbaabdd6268620d397bbfa3e914c621cf4482cdbd437d14789d3
+fb4086ac0d7c7ba0d4f471c04d8f73204f99c95d1e82d469c6ebd1908cbb9a95
 
 aMac-P4C5-HD20034-ES.bin
-7930f2e35c197a39e62434695b5aeaafd61a168133c549c29aa2f7067413323c
+76f106efe9b54f49a66de26d57714e70d152eb93a433b973d5b79679c361f652
 ```
 
-合并偏移、P4 镜像头、三组件逐字节内容及 SHA-256、应用版本、来源
-和 C5 transport 链接均独立复核。Rev3 应用 SHA-256：
-`725f10802f18d9e48135ddaf8ef6cb846a7cf72605c9a8428356f97a1d0cc48c`。
-旧 0.5.3 发布镜像已由构建脚本自动归档。
+合并偏移、P4 镜像头、三组件内容及 SHA-256、应用版本、来源和框架
+`firmware.factory.bin` 中的引导内容均独立复核。Rev3 应用 SHA-256 为
+`60d14c6bb40a56cd7f343a6a84ad014ae35a06c89ce7764f442d01793bbfac89`；
+引导修复前为 `2ca6f9322d367ff74d672d7036faf1b6b397466e73971b46cb8920a6c47c42b1`，
+修复后为 `583308c793c279381c9802c94ec45ec002548701d83c1bc136c002ae68379833`。
+ES 引导不应用此调整，仅完成构建与内容检查，未在 ES 实板验证。
+旧发布镜像、原引导和回退应用均已保留。
 
-当前电脑仅枚举 USB1 / COM7，未枚举 USB2 / COM12；已请求重新连接
-USB2。**尚未烧录 0.6.0，不能把主机检查当作实板深睡/充电唤醒通过。**
-还需安装后检验真实 PowerOff、持续深睡、RTC 检查次数及充电恢复启动。
-真实 4.1 V 关机触发与整机睡眠电流也尚未实测。现有硬件无法保证满电
-插线唤醒，CHRG 状态变化不能证明实际拔插，详情已写入功能说明。
+### 尚未实测的范围
 
-日志与发布复核位于 `artifacts/power-off/2026-11-13/`：
-`software-checks.log`、`final-targeted-checks.log`、`build-rev3.log`、
-`build-es.log`、`release-verification.json`、`ports-before-update.json`。
+当前电池电压较高，**真实跨过 4.10 V 的自动关机未实测**，阈值和保存
+流程已通过生产代码主机检查。没有万用表或电流表，ADC 绝对精度、
+深睡电流、5 秒轮询的平均耗电和 RTC 长时间漂移尚未测量。
+现有硬件没有独立 VBUS 检测，满电插线若不开始充电不能保证唤醒；
+CHRG 停止后再次充电也可能触发开机。不能把本次测试解释为任意插线
+即时唤醒，也不能把理论电流视为整机实测。
 
-## 0.5.3：独立充电检测实测（最后完成实板验证的版本）
+证据目录 `artifacts/power-off/2026-11-13/`：
+`software-0.6.2-checks.log`、`build-0.6.2-rev3-final.log`、
+`build-0.6.2-es-final.log`、`release-0.6.2-verification.json`、
+`thirty-cycles-summary.json`、`uart-thirty-cycles.raw.log`、
+`system-sleep-and-charge.raw.log`、`final-shutdown-status.json`、
+`charge-wake-result.json`、`final-charge-wake-desktop.json/png`、
+`final-hardware-summary.json`。初版失败日志与诊断材料也保留在该目录。
+
+## 0.5.3：独立充电检测实测（历史版本）
 
 2026-11-13，P4 固件 `5.4-beta.1+amac.0.5.3`。两种镜像均由干净源码提交
 `0e49714ab3b1d9a177b2acf8b35bb90b9aeab7f1` 构建，`source_dirty=false`。
