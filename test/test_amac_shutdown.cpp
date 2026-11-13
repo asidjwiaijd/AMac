@@ -20,6 +20,7 @@ constexpr int ESP_OK=0, ESP_RST_DEEPSLEEP=8, OUTPUT=1, LOW=0;
 constexpr int GPIO_NUM_13=13, GPIO_NUM_23=23, GPIO_NUM_54=54;
 constexpr int RTC_GPIO_MODE_OUTPUT_ONLY=1, WIFI_OFF=0;
 static uint32_t now_ms;
+static uint32_t cpu_mhz=400;
 static int reset_reason, timer_error, sleep_error;
 static uint64_t wake_timer;
 static bool success_sleep=true, lock_ok=true, has_mac=true, recovering=true;
@@ -31,11 +32,13 @@ static std::vector<std::string> trace;
 struct Sleeping {};
 static uint32_t millis() { return now_ms; }
 static void delay(uint32_t ms) { now_ms+=ms; }
+static uint32_t getCpuFrequencyMhz() { return cpu_mhz; }
+static bool setCpuFrequencyMhz(uint32_t mhz) { cpu_mhz=mhz;return true; }
 struct { template<class... T> void printf(const char *,T...) {} void println(const char *) {} void flush() {} } Serial;
 static int esp_reset_reason() { return reset_reason; }
 static const char *esp_err_to_name(int) { return "test_error"; }
 static int esp_sleep_enable_timer_wakeup(uint64_t us) { wake_timer=us;return timer_error; }
-static int esp_deep_sleep_try_to_start() { trace.push_back("sleep");if(success_sleep) throw Sleeping{};return sleep_error; }
+static int esp_deep_sleep_try_to_start() { assert(cpu_mhz==80);trace.push_back("sleep");if(success_sleep) throw Sleeping{};return sleep_error; }
 static void gpio_hold_dis(int pin) { holds[pin]=false;if(pin==54) ++release54; }
 static void gpio_hold_en(int pin) { holds[pin]=true; }
 static void rtc_gpio_hold_dis(int pin) { holds[pin]=false; }
@@ -70,7 +73,7 @@ struct { void mode(int) { trace.push_back("wifi_off"); } } WiFi;
 
 static void reset()
 {
-    now_ms=1000;reset_reason=0;timer_error=sleep_error=0;wake_timer=0;
+    now_ms=1000;reset_reason=0;timer_error=sleep_error=0;wake_timer=0;cpu_mhz=400;
     success_sleep=lock_ok=has_mac=recovering=true;
     for(bool &hold:holds) hold=false;
     release54=shutdown_calls=reads=sd_ends=display_off=recovered=unlocks=0;
@@ -166,6 +169,7 @@ int main()
     LowBatteryEnterAfterShutdown();
     assert(std::string(LowBatteryWakeReason())=="sleep_failed" && !charger_wait.active);
     assert(!holds[13] && !holds[23] && !holds[54] && recovered==1 && unlocks==1 && !poweroff_in_progress);
+    assert(cpu_mhz==400);
     reset();charger_wait.begin(false);reset_reason=ESP_RST_DEEPSLEEP;timer_error=43;
     LowBatteryBootCheck();
     assert(!charger_wait.active && std::string(LowBatteryWakeReason())=="sleep_failed");
