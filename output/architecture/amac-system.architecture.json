@@ -1,0 +1,404 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "aMac 系统架构 · 0.6.4",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1340,
+      710
+    ],
+    "repository": {
+      "url": "https://github.com/asidjwiaijd/AMac",
+      "revision": "a3093fea7bf2a31d75045853512cc8bd2e7fadb0"
+    }
+  },
+  "components": [
+    {
+      "id": "computer",
+      "type": "external",
+      "label": "Windows 电脑",
+      "sublabel": "键鼠控制台 / 更新维护",
+      "pos": [
+        29,
+        295
+      ],
+      "size": [
+        144,
+        88
+      ],
+      "sources": [
+        {
+          "path": "tools/amac_control_app.py"
+        },
+        {
+          "path": "tools/amac_update.py"
+        }
+      ]
+    },
+    {
+      "id": "usb_devices",
+      "type": "external",
+      "label": "实体键盘与鼠标",
+      "sublabel": "底板 USB Hub",
+      "pos": [
+        317,
+        72
+      ],
+      "size": [
+        158,
+        88
+      ],
+      "sources": [
+        {
+          "path": "src/basilisk/input_esp32.cpp"
+        }
+      ]
+    },
+    {
+      "id": "input_gateway",
+      "type": "messagebus",
+      "label": "输入与维护入口",
+      "sublabel": "USB2 协议 / USB Host / ADB",
+      "pos": [
+        317,
+        295
+      ],
+      "size": [
+        158,
+        88
+      ],
+      "tag": "启动设置 / Core 0",
+      "sources": [
+        {
+          "path": "src/basilisk/automation.cpp"
+        },
+        {
+          "path": "src/basilisk/input_esp32.cpp"
+        },
+        {
+          "path": "src/basilisk/boot_gui.cpp"
+        }
+      ]
+    },
+    {
+      "id": "mac_runtime",
+      "type": "backend",
+      "label": "Mac 运行环境",
+      "sublabel": "BasiliskII · 68040 · System 7",
+      "pos": [
+        605,
+        295
+      ],
+      "size": [
+        173,
+        88
+      ],
+      "tag": "Core 1 / PSRAM",
+      "sources": [
+        {
+          "path": "src/basilisk/main_esp32.cpp"
+        },
+        {
+          "path": "src/basilisk/uae_cpu/newcpu.cpp"
+        }
+      ]
+    },
+    {
+      "id": "video",
+      "type": "frontend",
+      "label": "显示与生日彩蛋",
+      "sublabel": "脏块更新 / 索引色 → RGB565",
+      "pos": [
+        893,
+        295
+      ],
+      "size": [
+        158,
+        88
+      ],
+      "tag": "Core 0",
+      "sources": [
+        {
+          "path": "src/basilisk/video_esp32.cpp"
+        },
+        {
+          "path": "src/basilisk/include/birthday_gift_runtime.h"
+        }
+      ]
+    },
+    {
+      "id": "lcd",
+      "type": "external",
+      "label": "HD20034 屏幕",
+      "sublabel": "ST7701S · 480 × 360",
+      "pos": [
+        1166,
+        295
+      ],
+      "size": [
+        144,
+        88
+      ],
+      "sources": [
+        {
+          "path": "hardware/reference/HD20034_KERNEL_REFERENCE.md"
+        }
+      ]
+    },
+    {
+      "id": "sd_card",
+      "type": "database",
+      "label": "microSD 系统卡",
+      "sublabel": "Q650.ROM / 磁盘 / 启动配置",
+      "pos": [
+        605,
+        72
+      ],
+      "size": [
+        173,
+        88
+      ],
+      "tag": "SDMMC · 1-bit / 4 MHz",
+      "sources": [
+        {
+          "path": "AMAC_PORT.md"
+        },
+        {
+          "path": "src/main.cpp"
+        }
+      ]
+    },
+    {
+      "id": "power_supply",
+      "type": "external",
+      "label": "电池与 USB1 充电",
+      "sublabel": "电池供电 / CHRG 信号",
+      "pos": [
+        29,
+        533
+      ],
+      "size": [
+        144,
+        88
+      ],
+      "sources": [
+        {
+          "path": "hardware/README.md"
+        }
+      ]
+    },
+    {
+      "id": "power_policy",
+      "type": "backend",
+      "label": "低电压与关机",
+      "sublabel": "未充电 < 4.10 V 持续 5 秒",
+      "pos": [
+        317,
+        533
+      ],
+      "size": [
+        158,
+        88
+      ],
+      "tag": "GPIO22 / GPIO21",
+      "sources": [
+        {
+          "path": "src/basilisk/low_battery_amac.cpp"
+        },
+        {
+          "path": "src/basilisk/mac_shutdown.cpp"
+        }
+      ]
+    },
+    {
+      "id": "clock",
+      "type": "database",
+      "label": "时钟与持久化",
+      "sublabel": "RTC / NVS / XPRAM",
+      "pos": [
+        605,
+        533
+      ],
+      "size": [
+        173,
+        88
+      ],
+      "sources": [
+        {
+          "path": "src/basilisk/mac_clock_esp32.cpp"
+        },
+        {
+          "path": "src/basilisk/xpram_esp32.cpp"
+        }
+      ]
+    },
+    {
+      "id": "network",
+      "type": "backend",
+      "label": "联网与自动校时",
+      "sublabel": "Wi-Fi / SNTP / HTTP 诊断",
+      "pos": [
+        893,
+        533
+      ],
+      "size": [
+        158,
+        88
+      ],
+      "sources": [
+        {
+          "path": "src/basilisk/mac_network_time.cpp"
+        },
+        {
+          "path": "src/basilisk/automation.cpp"
+        }
+      ]
+    },
+    {
+      "id": "wifi_chip",
+      "type": "external",
+      "label": "ESP32-C5 无线",
+      "sublabel": "2.4 GHz → 路由器 / NTP",
+      "pos": [
+        1166,
+        533
+      ],
+      "size": [
+        144,
+        88
+      ],
+      "tag": "独立协处理器",
+      "sources": [
+        {
+          "path": "AMAC_WIFI.md"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "ESP32-P4 主控 · Arduino / ESP-IDF / FreeRTOS",
+      "wraps": [
+        "input_gateway",
+        "mac_runtime",
+        "video",
+        "power_policy",
+        "clock",
+        "network"
+      ],
+      "pad": 32
+    }
+  ],
+  "connections": [
+    {
+      "id": "pc_control",
+      "from": "computer",
+      "to": "input_gateway",
+      "label": "USB2 · 控制与维护",
+      "variant": "emphasis"
+    },
+    {
+      "id": "physical_input",
+      "from": "usb_devices",
+      "to": "input_gateway",
+      "label": "USB Host · HID",
+      "labelDy": 94
+    },
+    {
+      "id": "guest_input",
+      "from": "input_gateway",
+      "to": "mac_runtime",
+      "label": "ADB 键鼠事件",
+      "variant": "emphasis"
+    },
+    {
+      "id": "guest_pixels",
+      "from": "mac_runtime",
+      "to": "video",
+      "label": "帧缓冲 / 脏块",
+      "variant": "emphasis"
+    },
+    {
+      "id": "panel_output",
+      "from": "video",
+      "to": "lcd",
+      "label": "MIPI DSI",
+      "variant": "emphasis"
+    },
+    {
+      "id": "disk_io",
+      "from": "mac_runtime",
+      "to": "sd_card",
+      "label": "ROM / 磁盘 I/O"
+    },
+    {
+      "id": "voltage_charge",
+      "from": "power_supply",
+      "to": "power_policy",
+      "label": "ADC / CHRG"
+    },
+    {
+      "id": "safe_shutdown",
+      "from": "power_policy",
+      "to": "mac_runtime",
+      "label": "正常关机请求",
+      "variant": "dashed"
+    },
+    {
+      "id": "guest_clock",
+      "from": "mac_runtime",
+      "to": "clock",
+      "label": "Mac 时钟 / PRAM",
+      "labelDy": 97
+    },
+    {
+      "id": "sleep_rtc",
+      "from": "power_policy",
+      "to": "clock",
+      "label": "RTC 定时深睡",
+      "variant": "dashed",
+      "labelDy": 23
+    },
+    {
+      "id": "network_time",
+      "from": "network",
+      "to": "clock",
+      "label": "NTP 时间"
+    },
+    {
+      "id": "hosted_link",
+      "from": "network",
+      "to": "wifi_chip",
+      "label": "SDIO / ESP-Hosted"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "运行与存储",
+      "items": [
+        "Mac 与应用在 P4 内模拟执行；C5 负责无线。",
+        "microSD 保存 ROM、Mac 系统盘、应用和文件。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "不拆机维护",
+      "items": [
+        "USB2 可转发键鼠，也可更新固件和 SD 文件。",
+        "写入维护前需正常关闭 Mac；USB1 兼有串口调试。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "深睡与唤醒",
+      "items": [
+        "正常关机后深睡，RTC 每 5 秒检查新充电信号。",
+        "CHRG 决定充电唤醒；深睡不保留应用 RAM。"
+      ]
+    }
+  ]
+}

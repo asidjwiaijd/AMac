@@ -11,6 +11,8 @@ examples/amac-desktop/birthday_desktop_control.cpp text eol=lf
 guest/birthday/dist/*.bin -text
 # Preserve PDF byte offsets even when ASCII85 streams resemble plain text.
 output/pdf/*.pdf -text -diff
+# Diagram checks and exports bind exact bytes; preserve them across Windows checkouts.
+output/architecture/** -text
 scripts/build_amac_desktop.sh text eol=lf
 scripts/install_birthday_desktop.sh text eol=lf
 scripts/prepare_amac_browser.sh text eol=lf

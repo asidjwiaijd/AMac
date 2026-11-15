@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-16",
+  "source_commit": "a3093fea7bf2a31d75045853512cc8bd2e7fadb0",
+  "diagrams": [
+    {
+      "diagram_type": "architecture",
+      "output": "amac-system.html",
+      "specification_sha256": "6914c38744073265ba31689ca90f16779b99cc88359474898fd46ab0d5be950e",
+      "artifact_sha256": "347dd2eb461e2660a9b629b28198d3de70cccb71f41d2c2758d6ef36512e50be",
+      "validation": "9/9 showcase, 0 errors, 0 warnings",
+      "browser_evidence": "passed",
+      "visual_review": "passed",
+      "correction_rounds": 2,
+      "inspected_images": [
+        "amac-system.visual-check.2048x1320.light.png",
+        "amac-system.visual-check.1440x900.dark.png",
+        "amac-system.png"
+      ]
+    },
+    {
+      "diagram_type": "architecture",
+      "output": "amac-code.html",
+      "specification_sha256": "bab65bc380adc06f61efb406442b763524021d1ce008151655121087fe9bef94",
+      "artifact_sha256": "adb098895a5de32ca17359933924d778dce01a3019e9c5f018e755b0d3d6f09d",
+      "validation": "9/9 showcase, 0 errors, 0 warnings",
+      "browser_evidence": "passed",
+      "visual_review": "passed",
+      "correction_rounds": 2,
+      "inspected_images": [
+        "amac-code.visual-check.2048x1320.light.png",
+        "amac-code.visual-check.1440x900.dark.png",
+        "amac-code.png"
+      ]
+    }
+  ]
+}

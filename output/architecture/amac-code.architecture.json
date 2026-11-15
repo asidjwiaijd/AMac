@@ -1,0 +1,423 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "aMac 代码框架 · 0.6.4",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1370,
+      865
+    ],
+    "repository": {
+      "url": "https://github.com/asidjwiaijd/AMac",
+      "revision": "a3093fea7bf2a31d75045853512cc8bd2e7fadb0"
+    }
+  },
+  "components": [
+    {
+      "id": "pc_tools",
+      "type": "external",
+      "label": "电脑端工具",
+      "sublabel": "tools/amac_control_app.py",
+      "pos": [
+        53,
+        72
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "输入捕获 / 维护 / 更新",
+      "sources": [
+        {
+          "path": "tools/amac_control_app.py"
+        },
+        {
+          "path": "tools/amac_input.py"
+        },
+        {
+          "path": "tools/mac_control.py"
+        }
+      ]
+    },
+    {
+      "id": "entry",
+      "type": "backend",
+      "label": "启动与生命周期",
+      "sublabel": "src/main.cpp · boot_gui.cpp",
+      "pos": [
+        543,
+        72
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "启动设置 → 模拟运行 → 关机",
+      "sources": [
+        {
+          "path": "src/main.cpp"
+        },
+        {
+          "path": "src/basilisk/boot_gui.cpp"
+        }
+      ]
+    },
+    {
+      "id": "build",
+      "type": "external",
+      "label": "构建与测试",
+      "sublabel": "platformio.ini · scripts/ · test/",
+      "pos": [
+        1032,
+        72
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "PlatformIO / 固定 SDK / 回归",
+      "sources": [
+        {
+          "path": "platformio.ini"
+        },
+        {
+          "path": "scripts/build_amac.ps1"
+        },
+        {
+          "path": "test/test_amac_idle_hook.py"
+        }
+      ]
+    },
+    {
+      "id": "control",
+      "type": "messagebus",
+      "label": "控制与维护协议",
+      "sublabel": "src/basilisk/automation.cpp",
+      "pos": [
+        53,
+        273
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "USB2 · @B2 / HTTP 诊断",
+      "sources": [
+        {
+          "path": "src/basilisk/automation.cpp"
+        },
+        {
+          "path": "src/basilisk/sd_maintenance.cpp"
+        }
+      ]
+    },
+    {
+      "id": "core",
+      "type": "backend",
+      "label": "68K CPU 与 Mac OS 适配",
+      "sublabel": "uae_cpu/ · emul_op.cpp",
+      "pos": [
+        543,
+        273
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "Core 1 · BasiliskII",
+      "sources": [
+        {
+          "path": "src/basilisk/main_esp32.cpp"
+        },
+        {
+          "path": "src/basilisk/uae_cpu/newcpu.cpp"
+        },
+        {
+          "path": "src/basilisk/emul_op.cpp"
+        }
+      ]
+    },
+    {
+      "id": "services",
+      "type": "backend",
+      "label": "电源、时钟与联网",
+      "sublabel": "low_battery* · mac_clock*",
+      "pos": [
+        1032,
+        273
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "mac_shutdown / mac_network_time",
+      "sources": [
+        {
+          "path": "src/basilisk/low_battery_amac.cpp"
+        },
+        {
+          "path": "src/basilisk/mac_clock_esp32.cpp"
+        },
+        {
+          "path": "src/basilisk/mac_network_time.cpp"
+        }
+      ]
+    },
+    {
+      "id": "input",
+      "type": "messagebus",
+      "label": "键鼠与 ADB 适配",
+      "sublabel": "input_esp32.cpp · adb.cpp",
+      "pos": [
+        53,
+        474
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "Core 0 · HID / 输入队列",
+      "sources": [
+        {
+          "path": "src/basilisk/input_esp32.cpp"
+        },
+        {
+          "path": "src/basilisk/adb.cpp"
+        }
+      ]
+    },
+    {
+      "id": "video",
+      "type": "frontend",
+      "label": "画面转换与更新",
+      "sublabel": "src/basilisk/video_esp32.cpp",
+      "pos": [
+        543,
+        474
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "Core 0 · 脏块 / 调色板 / RGB565",
+      "sources": [
+        {
+          "path": "src/basilisk/video_esp32.cpp"
+        }
+      ]
+    },
+    {
+      "id": "storage",
+      "type": "database",
+      "label": "系统盘与文件适配",
+      "sublabel": "disk.cpp · sys_esp32.cpp",
+      "pos": [
+        1032,
+        474
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "ROM / HFS 磁盘映像 / ExtFS",
+      "sources": [
+        {
+          "path": "src/basilisk/disk.cpp"
+        },
+        {
+          "path": "src/basilisk/sys_esp32.cpp"
+        },
+        {
+          "path": "src/basilisk/extfs.cpp"
+        }
+      ]
+    },
+    {
+      "id": "hal",
+      "type": "backend",
+      "label": "aMac 板级硬件适配",
+      "sublabel": "src/board/amac/",
+      "pos": [
+        543,
+        676
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "显示 / SD / 电池 / C5",
+      "sources": [
+        {
+          "path": "src/board/amac/board_display_amac.cpp"
+        },
+        {
+          "path": "src/board/amac/board_sd_amac.cpp"
+        },
+        {
+          "path": "src/board/amac/board_wifi_amac.cpp"
+        }
+      ]
+    },
+    {
+      "id": "platform",
+      "type": "external",
+      "label": "驱动与运行基础",
+      "sublabel": "lib/ · third_party/ · SDK",
+      "pos": [
+        53,
+        676
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "Arduino / ESP-IDF / FreeRTOS",
+      "sources": [
+        {
+          "path": "platformio.ini"
+        },
+        {
+          "path": "src/board/amac/esp_hosted_transport_amac.c"
+        }
+      ]
+    },
+    {
+      "id": "birthday",
+      "type": "frontend",
+      "label": "生日功能与客体小应用",
+      "sublabel": "birthday_gift*.cpp · guest/birthday/",
+      "pos": [
+        1032,
+        676
+      ],
+      "size": [
+        276,
+        88
+      ],
+      "tag": "状态机 / 图形 / 68K 入口",
+      "sources": [
+        {
+          "path": "src/basilisk/birthday_gift.cpp"
+        },
+        {
+          "path": "src/basilisk/birthday_gift_amac.cpp"
+        },
+        {
+          "path": "guest/birthday/README.md"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "tool_protocol",
+      "from": "pc_tools",
+      "to": "control",
+      "label": "USB2 控制协议",
+      "variant": "emphasis",
+      "labelDy": 80
+    },
+    {
+      "id": "build_firmware",
+      "from": "build",
+      "to": "entry",
+      "label": "编译 / 验证",
+      "variant": "dashed"
+    },
+    {
+      "id": "start_emulator",
+      "from": "entry",
+      "to": "core",
+      "label": "basilisk_setup()",
+      "variant": "emphasis",
+      "labelDy": 80
+    },
+    {
+      "id": "control_dispatch",
+      "from": "control",
+      "to": "core",
+      "label": "安全边界处理"
+    },
+    {
+      "id": "input_adb",
+      "from": "input",
+      "to": "core",
+      "label": "ADB 事件"
+    },
+    {
+      "id": "video_publish",
+      "from": "core",
+      "to": "video",
+      "label": "帧缓冲写入",
+      "variant": "emphasis",
+      "labelDy": 80
+    },
+    {
+      "id": "system_services",
+      "from": "core",
+      "to": "services",
+      "label": "服务回调"
+    },
+    {
+      "id": "guest_disk",
+      "from": "core",
+      "to": "storage",
+      "label": "磁盘 I/O"
+    },
+    {
+      "id": "input_usb_driver",
+      "from": "input",
+      "to": "platform",
+      "label": "USB Host 驱动",
+      "labelDy": 80
+    },
+    {
+      "id": "video_hal",
+      "from": "video",
+      "to": "hal",
+      "label": "BoardDisplay_*",
+      "labelDy": 80
+    },
+    {
+      "id": "board_sdk",
+      "from": "hal",
+      "to": "platform",
+      "label": "驱动 API",
+      "labelDy": 32
+    },
+    {
+      "id": "birthday_overlay",
+      "from": "birthday",
+      "to": "video",
+      "label": "入口与叠加绘制"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "读取顺序",
+      "items": [
+        "从 main.cpp 看启动，再看 main_esp32.cpp 的模拟运行。",
+        "代码图标出主要调用和数据关系，不展开全部函数。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "并发边界",
+      "items": [
+        "Core 0 处理输入、显示和控制协议；Core 1 执行 68K。",
+        "请求通过队列、安全 CPU 边界和脏块快照交接。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "修改入口",
+      "items": [
+        "换硬件看 src/board/amac/；改交互看 tools/ 与 input_esp32。",
+        "guest/birthday/ 为 Mac 磁盘里的 68K 入口，固件负责彩蛋绘制。"
+      ]
+    }
+  ]
+}

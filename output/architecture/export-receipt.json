@@ -1,0 +1,30 @@
+[
+  {
+    "file": "amac-system.svg",
+    "bytes": 64575,
+    "sha256": "c8dab0c3277a1b6ed8cdd053d7cefb0192ffed620d21cf59e4d5811ce1c549ca",
+    "canonical": true,
+    "sourceHtmlSha256": "347dd2eb461e2660a9b629b28198d3de70cccb71f41d2c2758d6ef36512e50be"
+  },
+  {
+    "file": "amac-system.png",
+    "bytes": 749962,
+    "sha256": "dced49184e7af2a5af641b06a961d21136430fb9e7659e86a1ee729db471c705",
+    "canonical": true,
+    "sourceHtmlSha256": "347dd2eb461e2660a9b629b28198d3de70cccb71f41d2c2758d6ef36512e50be"
+  },
+  {
+    "file": "amac-code.svg",
+    "bytes": 64843,
+    "sha256": "f799963f2dba95d4ede33edc009ad70c6a79a1ec4771e6580a4771502b79de2b",
+    "canonical": true,
+    "sourceHtmlSha256": "adb098895a5de32ca17359933924d778dce01a3019e9c5f018e755b0d3d6f09d"
+  },
+  {
+    "file": "amac-code.png",
+    "bytes": 586783,
+    "sha256": "14d36805ce685442c0f31287760c8dfcdc2e16abb2151389fbdb5bcc93306b17",
+    "canonical": true,
+    "sourceHtmlSha256": "adb098895a5de32ca17359933924d778dce01a3019e9c5f018e755b0d3d6f09d"
+  }
+]

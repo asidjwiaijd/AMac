@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "E:\\AMac\\firmware\\output\\architecture\\amac-code.architecture.json",
+  "output": "E:\\AMac\\firmware\\output\\architecture\\amac-code.html",
+  "specification": {
+    "sha256": "bab65bc380adc06f61efb406442b763524021d1ce008151655121087fe9bef94",
+    "bytes": 9176
+  },
+  "artifact": {
+    "sha256": "adb098895a5de32ca17359933924d778dce01a3019e9c5f018e755b0d3d6f09d",
+    "bytes": 727243
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  },
+  "evidence": {
+    "verified": true,
+    "repository": "https://github.com/asidjwiaijd/AMac",
+    "revision": "a3093fea7bf2a31d75045853512cc8bd2e7fadb0",
+    "references": 30
+  }
+}
